@@ -1,8 +1,7 @@
 
 #include <assert.h>
 
-#include "../third_party/cuda/helper_cuda.h"
-#include "../gpu_utils/runtime.h"
+#include "./utils/helper_gpu.h"
 #include "CrossNodeData.h"
 
 CrossNodeData * copyCNDtoGPU(CrossNodeData *data)
