@@ -4,7 +4,7 @@
 
 #include "mpi.h"
 
-#include "utils/constant.h"
+#include "helper/helper_type.h"
 
 class CrossNodeMap {
 public:

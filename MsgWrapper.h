@@ -1,0 +1,99 @@
+
+#ifndef MSGWRAPPER_H
+#define MSGWRAPPER_H
+
+#include <iostream>
+#include <assert.h>
+#include <mpi.h>
+
+#include "helper/helper_type.h"
+
+using std::cout;
+using std::endl;
+
+template<typename T>
+class MsgWrapper {
+public:
+	MsgWrapper(size_t num);
+	MsgWrapper();
+
+	int send_meta(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+	int recv_meta(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+
+	int send(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+	int recv(int src, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+
+	T * get_value(size_t idx);
+
+	void print();
+
+protected:
+	T *_data;
+	size_t _num;
+};
+
+template<typename T>
+MsgWrapper<T>::MsgWrapper(size_t num)
+{
+	_num = num;
+	_data = new T[num];
+}
+
+template<typename T>
+int MsgWrapper<T>::send_meta(int dst, int tag, MPI_Comm comm)
+{
+	int ret = 0;
+	ret = MPI_Send(&_num, 1, MPI_SIZE_T, dst, tag, comm);
+	assert(ret == MPI_SUCCESS);
+	return 1;
+}
+
+template<typename T>
+int MsgWrapper<T>::recv_meta(int src, int tag, MPI_Comm comm)
+{
+	int ret = 0;
+	size_t num;
+	ret = MPI_Recv(&num, 1, MPI_SIZE_T, src, tag, comm);
+	assert(ret == MPI_SUCCESS);
+	if (num > _num) {
+		delete[] _data;
+		_num = num;
+		_data = new T[num];
+	}
+	return 1;
+}
+
+template<typename T>
+int MsgWrapper<T>::send(int dst, int tag, MPI_Comm comm)
+{
+	int ret = 0;
+	ret = MPI_Send(&_data, sizeof(T) * _num, MPI_UNSIGNED_CHAR, dst, tag, comm);
+	assert(ret == MPI_SUCCESS);
+	return 1;
+}
+
+template<typename T>
+int MsgWrapper<T>::recv(int src, int tag, MPI_Comm comm)
+{
+	int ret = 0;
+	ret = MPI_Recv(&_data, sizeof(T) * _num, MPI_UNSIGNED_CHAR, src, tag, comm);
+	assert(ret == MPI_SUCCESS);
+	return ret;
+}
+
+template<typename T>
+T * MsgWrapper<T>::get_value(size_t idx)
+{
+	return _data + idx;
+}
+
+template<typename T>
+void MsgWrapper<T>::print()
+{
+	for (size_t i=0; i<_num; i++) {
+		cout << _data[i] << " ";
+	}
+	cout << endl;
+}
+
+#endif // MSG_WRAPPER_H

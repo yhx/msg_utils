@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "utils/helper_c.h"
-#include "utils/utils.h"
+#include "helper/helper_c.h"
+#include "helper/helper_array_c.h"
 #include "CrossNodeMap.h"
 
 CrossNodeMap::CrossNodeMap()
@@ -96,8 +96,8 @@ int CrossNodeMap::compare(CrossNodeMap &m)
 	bool equal = true;
 	equal = (_num == m._num) && equal;
 	equal = (_cross_size== m._cross_size) && equal;
-	equal = compareArray(_idx2index, m._idx2index, _num) && equal;
-	equal = compareArray(_crossnodeIndex2idx, m._crossnodeIndex2idx, _cross_size) && equal;
+	equal = is_equal_array(_idx2index, m._idx2index, _num) && equal;
+	equal = is_equal_array(_crossnodeIndex2idx, m._crossnodeIndex2idx, _cross_size) && equal;
 	
 	return equal;
 }
