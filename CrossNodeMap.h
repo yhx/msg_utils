@@ -4,22 +4,30 @@
 
 #include "mpi.h"
 
+#include "utils/constant.h"
+
 class CrossNodeMap {
-	// ID of neurons on this node to index in this map 
-	// index = _idx2index[id]
-	int *_idx2index;
-	// idx in this map to ID of shadow neurons on node j
-	// id = _crossnode_index2idx[index * node_num + j], -1 means no shadow neuron on node j
-	int *_crossnodeIndex2idx;
-	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections
-	int _cross_size;
-	int _num;
-	
+public:
+	CrossNodeMap();
+	CrossNodeMap(size_t num, size_t cross_size);
+	CrossNodeMap(size_t num, size_t cross_num, size_t node_num);
+
+	int send(int dest, int tag, MPI_Comm comm);
+	int recv(int src, int tag, MPI_Comm comm);
 	int save(FILE *f);
 	int load(FILE *f);
 	int compare(CrossNodeMap &m);
-	int send(int dest, int tag, MPI_Comm comm);
-	int recv(int src, int tag, MPI_Comm comm);
+
+protected:
+	// ID of neurons on this node to index in this map 
+	// index = _idx2index[id]
+	integer_t *_idx2index;
+	// idx in this map to ID of shadow neurons on node j
+	// id = _crossnode_index2idx[index * node_num + j], -1 means no shadow neuron on node j
+	integer_t *_crossnodeIndex2idx;
+	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections
+	size_t _cross_size;
+	size_t _num;
 };
 
 

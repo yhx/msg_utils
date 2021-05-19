@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../utils/utils.h"
+#include "utils/helper_c.h"
 #include "msg_utils.h"
 #include "CrossNodeSpike.h"
 
@@ -39,13 +39,13 @@ CrossNodeSpike::CrossNodeSpike(int node_num, int delay)
 	int num_p_1 = node_num + 1;
 
 	_recv_offset = malloc_c<int>(num_p_1);
-	_recv_start = malloc<int>(size+node_num);
+	_recv_start = malloc_c<int>(size+node_num);
 	_recv_num = malloc_c<int>(node_num);
 	_recv_data = NULL;
 	
-	_send_offset = malloc<int>(num_p_1);
-	_send_start = malloc<int>(size+node_num);
-	_send_num = malloc<int>(node_num);
+	_send_offset = malloc_c<int>(num_p_1);
+	_send_start = malloc_c<int>(size+node_num);
+	_send_num = malloc_c<int>(node_num);
 	_send_data = NULL;
 
 	reset();
@@ -94,8 +94,8 @@ CrossNodeSpike::~CrossNodeSpike()
 	free_c(_send_num);
 	free_c(_send_data);
 
-	data->_node_num = 0;
-	data->_min_delay = 0;
+	_node_num = 0;
+	_min_delay = 0;
 }
 
 int CrossNodeSpike::send(int dst, int tag, MPI_Comm comm) 
