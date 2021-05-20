@@ -53,7 +53,8 @@ int MsgWrapper<T>::recv_meta(int src, int tag, MPI_Comm comm)
 {
 	int ret = 0;
 	size_t num;
-	ret = MPI_Recv(&num, 1, MPI_SIZE_T, src, tag, comm);
+	MPI_Status status;
+	ret = MPI_Recv(&num, 1, MPI_SIZE_T, src, tag, comm, &status);
 	assert(ret == MPI_SUCCESS);
 	if (num > _num) {
 		delete[] _data;
@@ -76,7 +77,8 @@ template<typename T>
 int MsgWrapper<T>::recv(int src, int tag, MPI_Comm comm)
 {
 	int ret = 0;
-	ret = MPI_Recv(&_data, sizeof(T) * _num, MPI_UNSIGNED_CHAR, src, tag, comm);
+	MPI_Status status;
+	ret = MPI_Recv(&_data, sizeof(T) * _num, MPI_UNSIGNED_CHAR, src, tag, comm, &status);
 	assert(ret == MPI_SUCCESS);
 	return ret;
 }
