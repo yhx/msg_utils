@@ -16,12 +16,13 @@ class MsgWrapper {
 public:
 	MsgWrapper(size_t num);
 	MsgWrapper();
+	~MsgWrapper();
 
-	int send_meta(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
-	int recv_meta(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+	int send_meta(int dst, int tag, MPI_Comm comm);
+	int recv_meta(int dst, int tag, MPI_Comm comm);
 
-	int send(int dst, int tag, MPI_Comm comm=MPI_COMM_WORLD);
-	int recv(int src, int tag, MPI_Comm comm=MPI_COMM_WORLD);
+	int send(int dst, int tag, MPI_Comm comm);
+	int recv(int src, int tag, MPI_Comm comm);
 
 	T * get_value(size_t idx);
 
@@ -33,10 +34,24 @@ protected:
 };
 
 template<typename T>
+MsgWrapper<T>::MsgWrapper()
+{
+	_num = 0;
+	_data = NULL; 
+}
+
+template<typename T>
 MsgWrapper<T>::MsgWrapper(size_t num)
 {
 	_num = num;
 	_data = new T[num];
+}
+
+template<typename T>
+MsgWrapper<T>::~MsgWrapper()
+{
+	_num = 0;
+	delete [] _data;
 }
 
 template<typename T>
