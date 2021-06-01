@@ -4,7 +4,7 @@
 #include "nccl.h"
 #include "mpi.h"
 
-#include "../include/msg_utils.h"
+#include "../msg_utils/helper/helper_gpu.h"
 
 #define MPICHECK(cmd) do {                          \
   int e = cmd;                                      \
@@ -40,14 +40,14 @@ int main(int argc, char **argv)
 
 	int rank_gpu = 0, size_gpu = 0;
 
-	MPICHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank_sub));
-	MPICHECK(MPI_Comm_size(MPI_COMM_WORLD, &size_sub));
+	MPICHECK(MPI_Comm_rank(comm_mpi, &rank_gpu));
+	MPICHECK(MPI_Comm_size(comm_mpi, &size_gpu));
 
 	printf("Rank %d out of %d, gpu %d out of %d\n", rank, size, rank_gpu, size_gpu);
 
 	gpuDevice(rank_gpu);
 
-	ncclUniqueI id;
+	ncclUniqueId id;
 	ncclComm_t comm_gpu;
 	cudaStream_t s;
 
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
 		ncclGetUniqueId(&id);
 	}
 
-	MPI_CHECK(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_mpi));
+	MPICHECK(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_mpi));
 
 	NCCLCHECK(ncclCommInitRank(&comm_gpu, size_gpu, id, rank_gpu));
 
@@ -66,6 +66,9 @@ int main(int argc, char **argv)
 
 	float *sb = NULL;
 	float *rb = NULL;
+
+	float *sb_gpu = NULL;
+	float *rb_gpu = NULL;
 
 	if (0 == rank_gpu) {
 		sc[1] = 2;
@@ -77,6 +80,10 @@ int main(int argc, char **argv)
 		sb[0] = rank;
 		sb[1] = rank + 0.1;
 		rb[0] = 0.0;
+
+		sb_gpu = copyToGPU(sb, 2);
+		rb_gpu = copyToGPU(rb, 1);
+
 	} else {
 		sc[0] = 1;
 		rc[0] = 2;
@@ -87,20 +94,29 @@ int main(int argc, char **argv)
 		sb[0] = rank;
 		rb[0] = 0.0;
 		rb[1] = 0.0;
+
+		sb_gpu = copyToGPU(sb, 1);
+		rb_gpu = copyToGPU(rb, 2);
 	}
 
 	ncclGroupStart();
 	for (int r=0; r<size_gpu; r++) {
 		if (sc[r] > 0) {
-			ncclSend(sb_gpu[r], sc[r], MPI_FLOAT, r, comm_gpu, s);
+			ncclSend(sb_gpu, sc[r], ncclFloat, r, comm_gpu, s);
 		}
 		if (rc[r] > 0) {
-			ncclRecv(rb_gpu[r], recvcount, MPI_FLOAT, r, comm_gpu, s);
+			ncclRecv(rb_gpu, rc[r], ncclFloat, r, comm_gpu, s);
 		}
 	}
 	ncclGroupEnd();
 
 	checkCudaErrors(cudaStreamSynchronize(s));
+
+	if (0 == rank_gpu) {
+		copyFromGPU(rb, rb_gpu, 1);
+	} else {
+		copyFromGPU(rb, rb_gpu, 2);
+	}
 
 	if (0 == rank_gpu) {
 		printf("Rank %d out of %d, gpu %d out of %d, %lf\n", rank, size, rank_gpu, size_gpu, rb[0]);
