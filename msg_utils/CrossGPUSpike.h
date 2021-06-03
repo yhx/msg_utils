@@ -2,9 +2,13 @@
 #ifndef CROSSGPUSPIKE_H
 #define CROSSGPUSPIKE_H
 
+#include <string>
+
 #include "mpi.h"
 
 // #include "../net/Connection.h"
+
+using std::string;
 
 // Assuming node number is N, then the offset and num parameter both have N elements. offset[i] means the offset location on data array for ith node, num[i] records the actual data recived from/sended to the ith node. offset[N] is the size of data array.
 class CrossGPUSpike {
@@ -14,18 +18,19 @@ public:
 	CrossGPUSpike(FILE *f);
 	~CrossGPUSpike();
 
-	int send(int dst, int tag, MPI_Comm comm);
-	int recv(int src, int tag, MPI_Comm comm);
-	int save(FILE *f);
-	int load(FILE *f);
-	int to_gpu();
+
 	int fetch(int *tables, int *table_sizes, int *encode,  int *decode, int table_cap, int node_num, int time, int max_delay, int min_delay, int delay);
 	int msg();
 	int update(int curr_delay);
 	int upload(int *tables, int *table_sizes, int *encode,  int *decode, int table_cap, int node_num, int time, int max_delay, int min_delay, int delay);
-	int log(int time, FILE *sfile, FILE *rfile);
 
+	int send(int dst, int tag, MPI_Comm comm);
+	int recv(int src, int tag, MPI_Comm comm);
+	int save(const string &path);
+	int load(const string &path);
+	int to_gpu();
 	void alloc();
+	int log(int time, FILE *sfile, FILE *rfile);
 
 protected:
 	void reset();
@@ -57,9 +62,8 @@ protected:
 	// cap _send_offset[_node_num]
 	int *_send_data;
 
-	CrossGPUSpike *gpu;
+	CrossGPUSpike *_gpu_array;
 	MPI_Request request;
-
 };
 
 
