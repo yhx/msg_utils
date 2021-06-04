@@ -5,11 +5,11 @@
 
 #include "helper/helper_c.h"
 #include "msg_utils.h"
-#include "CrossGPUSpike.h"
+#include "CrossSpike.h"
 
-CrossGPUSpike::CrossGPUSpike()
+CrossSpike::CrossSpike()
 {
-	_node_num = 0;
+	_proc_num = 0;
 	_min_delay = 0;
 
 	_recv_offset = NULL;
@@ -23,16 +23,15 @@ CrossGPUSpike::CrossGPUSpike()
 	_send_data = NULL;
 
 	_gpu_array = NULL;
-
 }
 
-CrossGPUSpike::CrossGPUSpike(int node_num, int delay)
+CrossSpike::CrossSpike(int node_num, int delay)
 {
 	assert(delay > 0);
 	assert(node_num > 0);
 	// printf("Delay: %d\n", delay);
 	// printf("Node: %d\n", node_num);
-	_node_num = node_num;
+	_proc_num = node_num;
 	_min_delay = delay;
 
 	size_t size = delay * node_num;
@@ -51,10 +50,10 @@ CrossGPUSpike::CrossGPUSpike(int node_num, int delay)
 	reset();
 }
 
-void CrossGPUSpike::reset()
+void CrossSpike::reset()
 {
-	int node_num = _node_num;
-	int size = _min_delay * _node_num;
+	int node_num = _proc_num;
+	int size = _min_delay * _proc_num;
 	memset_c(_recv_start, 0, size + node_num);
 	memset_c(_recv_num, 0, node_num);
 
@@ -62,16 +61,16 @@ void CrossGPUSpike::reset()
 	memset_c(_send_num, 0, node_num);
 }
 
-void CrossGPUSpike::alloc()
+void CrossSpike::alloc()
 {
-	int data_size = _recv_offset[_node_num];
+	int data_size = _recv_offset[_proc_num];
 	// printf("Data Size1: %d\n", data_size);
 	if (data_size > 0) {
 		// printf("Size_t: %lu\n", sizeof(int)*data_size);
 		_recv_data = malloc_c<int>(data_size);
 	}
 
-	data_size = _send_offset[_node_num];
+	data_size = _send_offset[_proc_num];
 	// printf("Data Size2: %d\n", data_size);
 	if (data_size > 0) {
 		// printf("Size_t: %lu\n", sizeof(int)*data_size);
@@ -80,16 +79,16 @@ void CrossGPUSpike::alloc()
 }
 
 
-int CrossGPUSpike::send(int dst, int tag, MPI_Comm comm) 
+int CrossSpike::send(int dst, int tag, MPI_Comm comm) 
 {
 	int ret = 0;
-	ret = MPI_Send(&(_node_num), 1, MPI_INT, dst, tag, comm);
+	ret = MPI_Send(&(_proc_num), 1, MPI_INT, dst, tag, comm);
 	assert(ret == MPI_SUCCESS);
 	ret = MPI_Send(&(_min_delay), 1, MPI_INT, dst, tag+1, comm);
 	assert(ret == MPI_SUCCESS);
 
-	// int size = _min_delay * _node_num;
-	int num_p_1 = _node_num + 1;
+	// int size = _min_delay * _proc_num;
+	int num_p_1 = _proc_num + 1;
 	ret = MPI_Send(_recv_offset, num_p_1, MPI_INT, dst, tag+2, comm);
 	assert(ret == MPI_SUCCESS);
 	ret = MPI_Send(_send_offset, num_p_1, MPI_INT, dst, tag+3, comm);
@@ -97,20 +96,20 @@ int CrossGPUSpike::send(int dst, int tag, MPI_Comm comm)
 	return 4;
 }
 
-int CrossGPUSpike::recv(int src, int tag, MPI_Comm comm)
+int CrossSpike::recv(int src, int tag, MPI_Comm comm)
 {
-	assert(0 == _node_num);
+	assert(0 == _proc_num);
 	assert(0 == _min_delay);
 
 	int ret = 0;
 	MPI_Status status;
-	ret = MPI_Recv(&(_node_num), 1, MPI_INT, src, tag, comm, &status);
+	ret = MPI_Recv(&(_proc_num), 1, MPI_INT, src, tag, comm, &status);
 	assert(ret==MPI_SUCCESS);
 	ret = MPI_Recv(&(_min_delay), 1, MPI_INT, src, tag+1, comm, &status);
 	assert(ret==MPI_SUCCESS);
 
-	int size = _min_delay * _node_num;
-	int num_p_1 = _node_num + 1;
+	int size = _min_delay * _proc_num;
+	int num_p_1 = _proc_num + 1;
 	_recv_offset = malloc_c<int>(num_p_1);
 	ret = MPI_Recv(_recv_offset, num_p_1, MPI_INT, src, tag+2, comm, &status);
 	assert(ret==MPI_SUCCESS);
@@ -118,11 +117,11 @@ int CrossGPUSpike::recv(int src, int tag, MPI_Comm comm)
 	ret = MPI_Recv(_send_offset, num_p_1, MPI_INT, src, tag+3, comm, &status);
 	assert(ret==MPI_SUCCESS);
 
-	_recv_start = malloc_c<int>(size + _node_num);
-	_recv_num = malloc_c<int>(_node_num);
+	_recv_start = malloc_c<int>(size + _proc_num);
+	_recv_num = malloc_c<int>(_proc_num);
 
-	_send_start = malloc_c<int>(size + _node_num);
-	_send_num = malloc_c<int>(_node_num);
+	_send_start = malloc_c<int>(size + _proc_num);
+	_send_num = malloc_c<int>(_proc_num);
 
 	reset();
 	alloc();
@@ -130,34 +129,34 @@ int CrossGPUSpike::recv(int src, int tag, MPI_Comm comm)
 	return 4;
 }
 
-int CrossGPUSpike::save(const string &path)
+int CrossSpike::save(const string &path)
 {
 	string name = path + "/cross.data";
 	FILE *f = fopen_c(name.c_str(), "w");
 
-	fwrite_c(&(_node_num), 1, f);
+	fwrite_c(&(_proc_num), 1, f);
 	fwrite_c(&(_min_delay), 1, f);
 
-	int size = _min_delay * _node_num;
-	int num_p_1 = _node_num + 1;
+	int size = _min_delay * _proc_num;
+	int num_p_1 = _proc_num + 1;
 
 	fwrite_c(_recv_offset, num_p_1, f);
-	fwrite_c(_recv_start, size+_node_num, f);
-	fwrite_c(_recv_num, _node_num, f);
+	fwrite_c(_recv_start, size+_proc_num, f);
+	fwrite_c(_recv_num, _proc_num, f);
 
 	fwrite_c(_send_offset, num_p_1, f);
-	fwrite_c(_send_start, size+_node_num, f);
-	fwrite_c(_send_num, _node_num, f);
+	fwrite_c(_send_start, size+_proc_num, f);
+	fwrite_c(_send_num, _proc_num, f);
 
-	fwrite_c(_recv_data, _recv_offset[_node_num], f);
-	fwrite_c(_send_data, _send_offset[_node_num], f);
+	fwrite_c(_recv_data, _recv_offset[_proc_num], f);
+	fwrite_c(_send_data, _send_offset[_proc_num], f);
 
 	fclose_c(f);
 
 	return 0;
 }
 
-int CrossGPUSpike::load(const string &path)
+int CrossSpike::load(const string &path)
 {
 	string name = path + "/cross.data";
 	FILE *f = fopen_c(name.c_str(), "r");
@@ -198,32 +197,12 @@ int CrossGPUSpike::load(const string &path)
 	return 0;
 }
 
-int generateCND(Connection *conn, int *firedTable, int *firedTableSizes, int *idx2index, int *crossnode_index2idx, CrossNodeData *cnd, int node_num, int time, int gFiredTableCap, int min_delay, int delay)
-{
-	int delay_idx = time % (conn->maxDelay+1);
-	int fired_size = firedTableSizes[delay_idx];
-	for (int node=0; node<node_num; node++) {
-		for (int idx=0; idx<fired_size; idx++) {
-			int nid = firedTable[gFiredTableCap * delay_idx + idx];
-			int tmp = idx2index[nid];
-			if (tmp >= 0) {
-				int map_nid = crossnode_index2idx[tmp*node_num+node];
-				if (map_nid >= 0) {
-					int idx_t = node * (min_delay+1) + delay + 1;
-					cnd->_send_data[cnd->_send_offset[node] + cnd->_send_start[idx_t]]= map_nid;
-					cnd->_send_start[idx_t]++;
-				}
-			}
-		}
-	}
-	return 0;
-}
 
 #define ASYNC
 
 int msg_cnd(CrossNodeData *cnd, MPI_Request *request)
 {
-	int node_num = cnd->_node_num;
+	int node_num = cnd->_proc_num;
 	int delay = cnd->_min_delay;
 	for (int i=0; i<node_num; i++) {
 		cnd->_send_num[i] = cnd->_send_start[i*(delay+1)+delay];
@@ -258,17 +237,17 @@ int update_cnd(CrossNodeData *cnd, int curr_delay, MPI_Request *request)
 	if (curr_delay >= min_delay - 1) {
 		msg_cnd(cnd, request);
 	} else {
-		for (int i=0; i<cnd->_node_num; i++) {
+		for (int i=0; i<cnd->_proc_num; i++) {
 			cnd->_send_start[i*(min_delay+1)+curr_delay+2] = cnd->_send_start[i*(min_delay+1)+curr_delay+1];
 		}
 	}
 	return 0;
 }
 
-int CrossGPUSpike::log(int time, FILE *sfile, FILE *rfile)
+int CrossSpike::log(int time, FILE *sfile, FILE *rfile)
 {
 	fprintf(sfile, "%d: \n", time);
-	for (int n=0; n<_node_num; n++) {
+	for (int n=0; n<_proc_num; n++) {
 		for (int d=0; d<_min_delay; d++) {
 			int start = _send_start[n*(_min_delay+1)+d];
 			int end = _send_start[n*(_min_delay+1)+d+1];
@@ -281,7 +260,7 @@ int CrossGPUSpike::log(int time, FILE *sfile, FILE *rfile)
 	fflush(sfile);
 
 	fprintf(rfile, "%d: \n", time);
-	for (int n=0; n<_node_num; n++) {
+	for (int n=0; n<_proc_num; n++) {
 		for (int d=0; d<_min_delay; d++) {
 			int start = _recv_start[n*(_min_delay+1)+d];
 			int end = _recv_start[n*(_min_delay+1)+d+1];
