@@ -10,6 +10,12 @@
 CrossSpike::CrossSpike()
 {
 	_proc_num = 0;
+	_proc_rank = 0;
+
+	_gpu_num = 0;
+	_gpu_rank = 0;
+	_gpu_group = 0;
+
 	_min_delay = 0;
 
 	_recv_offset = NULL;
@@ -25,26 +31,26 @@ CrossSpike::CrossSpike()
 	_gpu_array = NULL;
 }
 
-CrossSpike::CrossSpike(int node_num, int delay)
+CrossSpike::CrossSpike(int proc_num, int delay)
 {
 	assert(delay > 0);
-	assert(node_num > 0);
+	assert(proc_num > 0);
 	// printf("Delay: %d\n", delay);
-	// printf("Node: %d\n", node_num);
-	_proc_num = node_num;
+	// printf("Node: %d\n", proc_num);
+	_proc_num = proc_num;
 	_min_delay = delay;
 
-	size_t size = delay * node_num;
-	size_t num_p_1 = node_num + 1;
+	size_t size = delay * proc_num;
+	size_t num_p_1 = proc_num + 1;
 
 	_recv_offset = malloc_c<int>(num_p_1);
-	_recv_start = malloc_c<int>(size+node_num);
-	_recv_num = malloc_c<int>(node_num);
+	_recv_start = malloc_c<int>(size+proc_num);
+	_recv_num = malloc_c<int>(proc_num);
 	_recv_data = NULL;
 	
 	_send_offset = malloc_c<int>(num_p_1);
-	_send_start = malloc_c<int>(size+node_num);
-	_send_num = malloc_c<int>(node_num);
+	_send_start = malloc_c<int>(size+proc_num);
+	_send_num = malloc_c<int>(proc_num);
 	_send_data = NULL;
 
 	reset();
@@ -52,13 +58,13 @@ CrossSpike::CrossSpike(int node_num, int delay)
 
 void CrossSpike::reset()
 {
-	int node_num = _proc_num;
+	int proc_num = _proc_num;
 	int size = _min_delay * _proc_num;
-	memset_c(_recv_start, 0, size + node_num);
-	memset_c(_recv_num, 0, node_num);
+	memset_c(_recv_start, 0, size + proc_num);
+	memset_c(_recv_num, 0, proc_num);
 
-	memset_c(_send_start, 0, size + node_num);
-	memset_c(_send_num, 0, node_num);
+	memset_c(_send_start, 0, size + proc_num);
+	memset_c(_send_num, 0, proc_num);
 }
 
 void CrossSpike::alloc()
@@ -84,16 +90,40 @@ int CrossSpike::send(int dst, int tag, MPI_Comm comm)
 	int ret = 0;
 	ret = MPI_Send(&(_proc_num), 1, MPI_INT, dst, tag, comm);
 	assert(ret == MPI_SUCCESS);
-	ret = MPI_Send(&(_min_delay), 1, MPI_INT, dst, tag+1, comm);
+	ret = MPI_Send(&(_proc_rank), 1, MPI_INT, dst, tag+1, comm);
 	assert(ret == MPI_SUCCESS);
 
-	// int size = _min_delay * _proc_num;
+	ret = MPI_Send(&(_gpu_num), 1, MPI_INT, dst, tag+2, comm);
+	assert(ret == MPI_SUCCESS);
+	ret = MPI_Send(&(_gpu_rank), 1, MPI_INT, dst, tag+3, comm);
+	assert(ret == MPI_SUCCESS);
+	ret = MPI_Send(&(_gpu_group), 1, MPI_INT, dst, tag+4, comm);
+	assert(ret == MPI_SUCCESS);
+
+	ret = MPI_Send(&(_min_delay), 1, MPI_INT, dst, tag+5, comm);
+	assert(ret == MPI_SUCCESS);
+
+	int size = _min_delay * _proc_num;
 	int num_p_1 = _proc_num + 1;
-	ret = MPI_Send(_recv_offset, num_p_1, MPI_INT, dst, tag+2, comm);
+
+	ret = MPI_Send(_recv_offset, num_p_1, MPI_INT, dst, tag+6, comm);
 	assert(ret == MPI_SUCCESS);
-	ret = MPI_Send(_send_offset, num_p_1, MPI_INT, dst, tag+3, comm);
+	ret = MPI_Send(_recv_start, size+_proc_num, MPI_INT, dst, tag+7, comm);
+	ret = MPI_Send(_recv_num, _proc_num, MPI_INT, dst, tag+8, comm);
 	assert(ret == MPI_SUCCESS);
-	return 4;
+
+	ret = MPI_Send(_send_offset, num_p_1, MPI_INT, dst, tag+9, comm);
+	assert(ret == MPI_SUCCESS);
+	ret = MPI_Send(_send_start, size+_proc_num, MPI_INT, dst, tag+10, comm);
+	ret = MPI_Send(_send_num, _proc_num, MPI_INT, dst, tag+11, comm);
+	assert(ret == MPI_SUCCESS);
+
+	ret = MPI_Send(_recv_data, _recv_offset[_proc_num], MPI_INT, dst, tag+12, comm);
+	assert(ret == MPI_SUCCESS);
+	ret = MPI_Send(_send_data, _send_offset[_proc_num], MPI_INT, dst, tag+13, comm);
+	assert(ret == MPI_SUCCESS);
+
+	return 14;
 }
 
 int CrossSpike::recv(int src, int tag, MPI_Comm comm)
@@ -105,17 +135,26 @@ int CrossSpike::recv(int src, int tag, MPI_Comm comm)
 	MPI_Status status;
 	ret = MPI_Recv(&(_proc_num), 1, MPI_INT, src, tag, comm, &status);
 	assert(ret==MPI_SUCCESS);
-	ret = MPI_Recv(&(_min_delay), 1, MPI_INT, src, tag+1, comm, &status);
+	ret = MPI_Recv(&(_proc_rank), 1, MPI_INT, src, tag+1, comm, &status);
+	assert(ret==MPI_SUCCESS);
+
+	ret = MPI_Recv(&(_gpu_num), 1, MPI_INT, src, tag+2, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(&(_gpu_rank), 1, MPI_INT, src, tag+3, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(&(_gpu_group), 1, MPI_INT, src, tag+4, comm, &status);
+	assert(ret==MPI_SUCCESS);
+
+
+	ret = MPI_Recv(&(_min_delay), 1, MPI_INT, src, tag+5, comm, &status);
 	assert(ret==MPI_SUCCESS);
 
 	int size = _min_delay * _proc_num;
 	int num_p_1 = _proc_num + 1;
+
 	_recv_offset = malloc_c<int>(num_p_1);
-	ret = MPI_Recv(_recv_offset, num_p_1, MPI_INT, src, tag+2, comm, &status);
-	assert(ret==MPI_SUCCESS);
+
 	_send_offset = malloc_c<int>(num_p_1);
-	ret = MPI_Recv(_send_offset, num_p_1, MPI_INT, src, tag+3, comm, &status);
-	assert(ret==MPI_SUCCESS);
 
 	_recv_start = malloc_c<int>(size + _proc_num);
 	_recv_num = malloc_c<int>(_proc_num);
@@ -123,10 +162,30 @@ int CrossSpike::recv(int src, int tag, MPI_Comm comm)
 	_send_start = malloc_c<int>(size + _proc_num);
 	_send_num = malloc_c<int>(_proc_num);
 
-	reset();
+	// reset();
+
+	ret = MPI_Recv(_recv_offset, num_p_1, MPI_INT, src, tag+6, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(_recv_start, size+_proc_num, MPI_INT, src, tag+7, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(_recv_num, _proc_num, MPI_INT, src, tag+8, comm, &status);
+	assert(ret==MPI_SUCCESS);
+
+	ret = MPI_Recv(_send_offset, num_p_1, MPI_INT, src, tag+9, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(_send_start, size+_proc_num, MPI_INT, src, tag+10, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(_send_num, _proc_num, MPI_INT, src, tag+11, comm, &status);
+	assert(ret==MPI_SUCCESS);
+
 	alloc();
 
-	return 4;
+	ret = MPI_Recv(_recv_data, _recv_offset[_proc_num], MPI_INT, src, tag+12, comm, &status);
+	assert(ret==MPI_SUCCESS);
+	ret = MPI_Recv(_send_data, send_offset[_proc_num], MPI_INT, src, tag+13, comm, &status);
+	assert(ret==MPI_SUCCESS);
+
+	return 14;
 }
 
 int CrossSpike::save(const string &path)
@@ -135,6 +194,12 @@ int CrossSpike::save(const string &path)
 	FILE *f = fopen_c(name.c_str(), "w");
 
 	fwrite_c(&(_proc_num), 1, f);
+	fwrite_c(&(_proc_rank), 1, f);
+
+	fwrite_c(&(_gpu_num), 1, f);
+	fwrite_c(&(_gpu_rank), 1, f);
+	fwrite_c(&(_gpu_group), 1, f);
+
 	fwrite_c(&(_min_delay), 1, f);
 
 	int size = _min_delay * _proc_num;
@@ -143,6 +208,7 @@ int CrossSpike::save(const string &path)
 	fwrite_c(_recv_offset, num_p_1, f);
 	fwrite_c(_recv_start, size+_proc_num, f);
 	fwrite_c(_recv_num, _proc_num, f);
+
 
 	fwrite_c(_send_offset, num_p_1, f);
 	fwrite_c(_send_start, size+_proc_num, f);
@@ -161,36 +227,41 @@ int CrossSpike::load(const string &path)
 	string name = path + "/cross.data";
 	FILE *f = fopen_c(name.c_str(), "r");
 
-	int node_num = 0, delay = 0;
-	fread_c(&(node_num), 1, f);
-	fread_c(&(delay), 1, f);
+	fread_c(&(_proc_num), 1, f);
+	fread_c(&(_proc_rank), 1, f);
 
-	int size = delay * node_num;
-	int num_p_1 = node_num + 1;
+	fread_c(&(_gpu_num), 1, f);
+	fread_c(&(_gpu_rank), 1, f);
+	fread_c(&(_gpu_group), 1, f);
+
+	fread_c(&(_min_delay), 1, f);
+
+	int size = _min_delay * _proc_num;
+	int num_p_1 = _proc_num + 1;
 
 	_recv_offset = malloc_c<int>(num_p_1);
-	_recv_start = malloc_c<int>(size+node_num);
-	_recv_num = malloc_c<int>(node_num);
+	_recv_start = malloc_c<int>(size+proc_num);
+	_recv_num = malloc_c<int>(proc_num);
 	_recv_data = NULL;
 	
 	_send_offset = malloc_c<int>(num_p_1);
-	_send_start = malloc_c<int>(size+node_num);
-	_send_num = malloc_c<int>(node_num);
+	_send_start = malloc_c<int>(size+proc_num);
+	_send_num = malloc_c<int>(proc_num);
 	_send_data = NULL;
 
-	reset();
+	// reset();
+
+	fread_c(_recv_offset, proc_num+1, f);
+	fread_c(_recv_start, size+proc_num, f);
+	fread_c(_recv_num, proc_num, f);
+
+	fread_c(_send_offset, proc_num+1, f);
+	fread_c(_send_start, size+proc_num, f);
+	fread_c(_send_num, proc_num, f);
+
 	alloc();
-
-	fread_c(_recv_offset, node_num+1, f);
-	fread_c(_recv_start, size+node_num, f);
-	fread_c(_recv_num, node_num, f);
-
-	fread_c(_send_offset, node_num+1, f);
-	fread_c(_send_start, size+node_num, f);
-	fread_c(_send_num, node_num, f);
-
-	fread_c(_recv_data, _recv_offset[node_num], f);
-	fread_c(_send_data, _send_offset[node_num], f);
+	fread_c(_recv_data, _recv_offset[proc_num], f);
+	fread_c(_send_data, _send_offset[proc_num], f);
 
 	fclose_c(f);
 
@@ -198,47 +269,43 @@ int CrossSpike::load(const string &path)
 }
 
 
-#define ASYNC
 
-int msg_cnd(CrossNodeData *cnd, MPI_Request *request)
+int CrossSpike::msg_cpu()
 {
-	int node_num = cnd->_proc_num;
-	int delay = cnd->_min_delay;
-	for (int i=0; i<node_num; i++) {
-		cnd->_send_num[i] = cnd->_send_start[i*(delay+1)+delay];
+	for (int i=0; i<_proc_num; i++) {
+		_send_num[i] = _send_start[i*(_min_delay+1)+_min_delay];
 	}
 
-	// int num_size = delay * node_num;
-	// print_mpi_x32(cnd->_send_num, num_size, "Send Num");
-	// print_mpi_x32(cnd->_recv_num, num_size, "To Recv Num");
+	// int num_size = _min_delay * _proc_num;
+	// print_mpi_x32(_send_num, num_size, "Send Num");
+	// print_mpi_x32(_recv_num, num_size, "To Recv Num");
 
-	MPI_Alltoall(cnd->_send_start, delay+1, MPI_INT, cnd->_recv_start, delay+1, MPI_INT, MPI_COMM_WORLD);
+	MPI_Alltoall(_send_start, _min_delay+1, MPI_INT, _recv_start, _min_delay+1, MPI_INT, MPI_COMM_WORLD);
 
-	// print_mpi_x32(cnd->_recv_num, num_size, "Recv Num");
+	// print_mpi_x32(_recv_num, num_size, "Recv Num");
 
-	for (int i=0; i<node_num; i++) {
-		cnd->_recv_num[i] = cnd->_recv_start[i*(delay+1)+delay];
+	for (int i=0; i<_proc_num; i++) {
+		_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];
 	}
 
 #ifdef ASYNC
-	int ret = MPI_Ialltoallv(cnd->_send_data, cnd->_send_num, cnd->_send_offset , MPI_INT, cnd->_recv_data, cnd->_recv_num, cnd->_recv_offset, MPI_INT, MPI_COMM_WORLD, request);
+	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_INT, _recv_data, _recv_num, _recv_offset, MPI_INT, MPI_COMM_WORLD, request);
 	assert(ret == MPI_SUCCESS);
 #else
-	int ret = MPI_Alltoallv(cnd->_send_data, cnd->_send_num, cnd->_send_offset, MPI_INT, cnd->_recv_data, cnd->_recv_num, cnd->_recv_offset, MPI_INT, MPI_COMM_WORLD);
+	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_INT, _recv_data, _recv_num, _recv_offset, MPI_INT, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
 #endif
 
 	return ret;
 }
 
-int update_cnd(CrossNodeData *cnd, int curr_delay, MPI_Request *request) 
+int CrossSpike::update_cpu(int curr_delay) 
 {
-	int min_delay = cnd->_min_delay;
-	if (curr_delay >= min_delay - 1) {
-		msg_cnd(cnd, request);
+	if (curr_delay >= _min_delay - 1) {
+			msg_cpu();
 	} else {
-		for (int i=0; i<cnd->_proc_num; i++) {
-			cnd->_send_start[i*(min_delay+1)+curr_delay+2] = cnd->_send_start[i*(min_delay+1)+curr_delay+1];
+		for (int i=0; i<_proc_num; i++) {
+			_send_start[i*(_min_delay+1)+curr_delay+2] = _send_start[i*(_min_delay+1)+curr_delay+1];
 		}
 	}
 	return 0;

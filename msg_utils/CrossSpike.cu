@@ -135,7 +135,7 @@ __global__ void update_kernel(int *start, int node_num, int min_delay, int curr_
 	}
 }
 
-int CrossSpike::update(int curr_delay)
+int CrossSpike::update_gpu(int curr_delay)
 {
 	if (curr_delay > min_delay -1) {
 		msg();
