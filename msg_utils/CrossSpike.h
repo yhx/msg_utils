@@ -22,9 +22,19 @@ public:
 	CrossSpike(FILE *f);
 	~CrossSpike();
 
-	int fetch(CrossNodeMap *map, int *tables, int *table_sizes, int table_cap, int proc_num, int time, int max_delay, int min_delay, int delay);
-	int update(int curr_delay);
-	int upload(CrossNodeMap *map, int *tables, int *table_sizes, int table_cap, int proc_num, int time, int max_delay, int min_delay, int delay);
+	template<typename TID, typename TSIZE>
+		int fetch_cpu(CrossNodeMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int min_delay, int node_num, int time);
+	int update_cpu(int curr_delay);
+	template<typename TID, typename TSIZE>
+		int upload_cpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay);
+
+#ifdef USE_GPU
+	template<typename TID, typename TSIZE>
+		int fetch_gpu(CrossNodeMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int min_delay, int node_num, int time, int grid, int block);
+	int update_gpu(int curr_delay);
+	template<typename TID, typename TSIZE>
+		int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block);
+#endif // USE_GPU
 
 	int send(int dst, int tag, MPI_Comm comm);
 	int recv(int src, int tag, MPI_Comm comm);
@@ -42,10 +52,10 @@ protected:
 
 public:
 	// cap _proc_num + 1
-	int *_recv_offset;
+	integer_t *_recv_offset;
 
 	// cap _proc_num + 1
-	int *_send_offset;
+	integer_t *_send_offset;
 
 protected:
 	// info
@@ -56,25 +66,25 @@ protected:
 	int _gpu_rank;
 	int _gpu_group;
 
-	int _min_delay;
+	integer_t _min_delay;
 
-	// int _recv_size; 
+	// integer_t _recv_size; 
 	// cap _proc_num * (delay+1)
-	int *_recv_start;
+	integer_t *_recv_start;
 	// cap _proc_num
-	int *_recv_num;
+	integer_t *_recv_num;
 	// cap _recv_offset[_proc_num]
-	int *_recv_data;
+	integer_t *_recv_data;
 
-	// int send_size;
+	// integer_t send_size;
 	// cap _proc_num * (delay+1)
-	int *_send_start;
+	integer_t *_send_start;
 	// cap _proc_num * delay
-	int *_send_num;
+	integer_t *_send_num;
 	// cap _send_offset[_proc_num]
-	int *_send_data;
+	integer_t *_send_data;
 
-	MPI_Request request;
+	MPI_Request _request;
 
 	CrossSpike *_gpu_array;
 };

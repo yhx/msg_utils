@@ -80,11 +80,11 @@ int CrossSpike::to_gpu()
 	return 0;
 }
 
-template<typename T1, typename T2, typename T3>
-__global__ void fetch_kernel(T1 *data, T1 *offset, T1 *num, T2 *idx2index, T2 *index2ridx, T3 *fired_table, T3 *fired_sizes, int fired_cap, int node_num, int delay_idx, int min_delay, int delay)
+template<typename TID, typename TSIZE>
+__global__ void fetch_kernel(integer_t *data, integer_t *offset, integer_t *num, integer_t *idx2index, integer_t *index2ridx, TID *fired_table, TSIZE *fired_sizes, TSIZE fired_cap, int proc_num, int delay_idx, int min_delay, int delay)
 {
-	__shared__ T1 cross_neuron_id[MAX_BLOCK_SIZE];
-	__shared__ volatile T1 cross_cnt;
+	__shared__ integer_t cross_neuron_id[MAX_BLOCK_SIZE];
+	__shared__ volatile integer_t cross_cnt;
 
 	if (threadIdx.x == 0) {
 		cross_cnt = 0;
@@ -93,14 +93,14 @@ __global__ void fetch_kernel(T1 *data, T1 *offset, T1 *num, T2 *idx2index, T2 *i
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	T3 fired_size = fired_sizes[delay_idx];
-	for (int node = 0; node < node_num; node++) {
+	for (int node = 0; node < proc_num; node++) {
 		for (int idx = tid; idx < fired_size; idx += blockDim.x * gridDim.x) {
-			T2 nid = fired_table[fired_cap*delay_idx + idx];
+			integer_t nid = static_cast<integer_t>(fired_table[fired_cap*delay_idx + idx]);
 			T3 tmp = idx2index[nid];
 			if (tmp >= 0) {
-				T3 map_nid = index2ridx[tmp*node_num + node];
+				T3 map_nid = index2ridx[tmp*proc_num + node];
 				if (map_nid >= 0) {
-					size_t test_loc = static_cast<size_t>(atomicAdd((uinteger_t *)&cross_cnt, 1));
+					size_t test_loc = static_cast<size_t>(atomicAdd(&cross_cnt, 1));
 					if (test_loc < MAX_BLOCK_SIZE) {
 						cross_neuron_id[test_loc] = static_cast<T1>(map_nid);
 					}
@@ -110,7 +110,7 @@ __global__ void fetch_kernel(T1 *data, T1 *offset, T1 *num, T2 *idx2index, T2 *i
 
 			if (cross_cnt > 0) {
 				int idx_t = node * (min_delay + 1) + delay + 1;
-				merge2array(cross_neuron_id, cross_cnt, data + offset[node] + num[idx_t], &(num[idx_t]), static_cast<T1>(fired_cap*node));
+				merge2array(cross_neuron_id, cross_cnt, data + offset[node] + num[idx_t], &(num[idx_t]), static_cast<integer_t>(fired_cap*node));
 				if (threadIdx.x == 0) {
 					cross_cnt = 0;
 				}
@@ -121,13 +121,14 @@ __global__ void fetch_kernel(T1 *data, T1 *offset, T1 *num, T2 *idx2index, T2 *i
 	}
 }
 
-int CrossSpike::fetch(CrossNodeMap *map, uinteger_t *tables, uinteger_t *table_sizes, int table_cap, int node_num, int max_delay, int delay, int time, int grid, int block)
+template<typename TID, typename TSIZE>
+int CrossSpike::fetch(CrossNodeMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int delay, int time, int grid, int block)
 {
 	int delay_idx = time % (max_delay + 1);
-	fetch_kernel<<<grid, block, 0, _s>>>(_gpu_array->_send_data, _gpu_array->send_offset, _gpu_array->_send_start, map->_idx2index, map->_crossnodeIndex2idx, tables, table_sizes, table_cap, node_num, delay_idx, _min_delay, delay)
+	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->send_offset, _gpu_array->_send_start, map->_idx2index, map->_crossnodeIndex2idx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, delay)
 }
 
-__global__ void update_kernel(int *start, int node_num, int min_delay, int curr_delay)
+__global__ void update_kernel(integer_t *start, int proc_num, int min_delay, int curr_delay)
 {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	for (int i=tid; i<node_num; i++) {
@@ -138,7 +139,11 @@ __global__ void update_kernel(int *start, int node_num, int min_delay, int curr_
 int CrossSpike::update_gpu(int curr_delay)
 {
 	if (curr_delay > min_delay -1) {
-		msg();
+		if (_proc_num > _gpu_num) {
+			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1), cudaMemcpyDeviceToHost);
+			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[num], cudaMemcpyDeviceToHost);
+		}
+		msg_gpu();
 	} else {
 		cudaStreamSynchronize(s);
 		update_kernel<<<1, _proc_num, 0, _s>>>(_gpu_array->_send_start, _proc_num, _min_delay, curr_delay);
@@ -152,12 +157,12 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 	cudaStreamSynchronize(s);
 	ncclGroupStart();
 	int size = _min_delay + 1;
-	for (int r=0; r<_proc_num; r++) {
+	for (int r=0; r<_gpu_num; r++) {
 		ncclSend(_gpu_array->_send_start+(r*size), size, ncclInt, r, comm_gpu, s);
 		ncclRecv(_gpu_array->_recv_start+(r*size), size, ncclInt, r, comm_gpu, s);
 	}
 	ncclGroupEnd();
-	// cudaStreamSynchronize(s);
+	cudaStreamSynchronize(s);
 
 	ncclGroupStart();
 	for (int r=0; r<size_gpu; r++) {
@@ -171,3 +176,42 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 	ncclGroupEnd();
 	cudaStreamSynchronize(s);
 }
+
+template<typename TID, typename TSIZE>
+int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block)
+{
+	if (curr_delay >= minDelay -1) {
+#ifdef ASYNC
+		MPI_Status status_t;
+		int ret = MPI_Wait(&request_t, &status_t);
+		assert(ret == MPI_SUCCESS);
+#endif
+
+		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
+
+		for (int d=0; d < _min_delay; d++) {
+			int delay_idx = (time-min_delay+2+d+max_delay)%(max_delay+1);
+			for (int n_ = 0; n_<node_num; n_++) {
+				int start = cnd->_recv_start[n_*(min_delay+1)+d_];
+				int end = cnd->_recv_start[n_*(minDelay+1)+d_+1];
+				if (end > start) {
+					assert(c_fired_sizes[delay_idx] + end - start <= allNeuronNum);
+					checkCudaErrors(cudaMemcpy(g_buffer->_fire_table + allNeuronNum*delay_idx + c_fired_sizes[delay_idx], cnd->_recv_data + cnd->_recv_offset[n_] + start, sizeof(int)*(end-start), cudaMemcpyHostToDevice));
+					c_fired_sizes[delay_idx] += end - start;
+				}
+			}
+		}
+		checkCudaErrors(cudaMemcpy(g_buffer->_fired_sizes, c_fired_sizes, sizeof(int)*(maxDelay+1), cudaMemcpyHostToDevice));
+
+		{ // Reset
+			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
+			gpuMemset(_gpu_array->_send_start, 0, _min_delay * _proc_num + _proc_num);
+
+			memset_c(_recv_num, 0, node_num);
+			memset_c(_send_num, 0, node_num);
+		}
+	}
+
+	return 0;
+}
+
