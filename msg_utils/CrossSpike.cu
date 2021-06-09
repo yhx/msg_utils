@@ -145,8 +145,8 @@ int CrossSpike::update_gpu(int curr_delay)
 		}
 		msg_gpu();
 	} else {
-		cudaStreamSynchronize(s);
-		update_kernel<<<1, _proc_num, 0, _s>>>(_gpu_array->_send_start, _proc_num, _min_delay, curr_delay);
+		cudaDeviceSynchronize();
+		update_kernel<<<1, _proc_num>>>(_gpu_array->_send_start, _proc_num, _min_delay, curr_delay);
 	}
 
 	return 0;
@@ -154,7 +154,19 @@ int CrossSpike::update_gpu(int curr_delay)
 
 int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 {
-	cudaStreamSynchronize(s);
+	for (int i=0; i<_proc_num; i++) {
+		if (i/_gpu_num == _gpu_group) {
+			_send_num[i] = 0;
+		} else {
+			_send_num[i] = _send_start[i*(_min_delay+1)+_min_delay];
+		}
+	}
+
+	// int num_size = _min_delay * _proc_num;
+	// print_mpi_x32(_send_num, num_size, "Send Num");
+	// print_mpi_x32(_recv_num, num_size, "To Recv Num");
+
+	cudaDeviceSynchronize();
 	ncclGroupStart();
 	int size = _min_delay + 1;
 	for (int r=0; r<_gpu_num; r++) {
@@ -162,7 +174,11 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 		ncclRecv(_gpu_array->_recv_start+(r*size), size, ncclInt, r, comm_gpu, s);
 	}
 	ncclGroupEnd();
-	cudaStreamSynchronize(s);
+
+
+	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
+
+	cudaDeviceSynchronize();
 
 	ncclGroupStart();
 	for (int r=0; r<size_gpu; r++) {
@@ -174,34 +190,52 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 		}
 	}
 	ncclGroupEnd();
-	cudaStreamSynchronize(s);
+
+
+	// print_mpi_x32(_recv_num, num_size, "Recv Num");
+
+	for (int i=0; i<_proc_num; i++) {
+		if (i/_gpu_num == _gpu_group) {
+			_recv_num[i] = 0;
+		} else {
+			_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];
+		}
+	}
+
+#ifdef ASYNC
+	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
+	assert(ret == MPI_SUCCESS);
+#else
+	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+	assert(ret == MPI_SUCCESS);
+#endif
 }
 
 template<typename TID, typename TSIZE>
-int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block)
+int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE *c_table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block)
 {
 	if (curr_delay >= minDelay -1) {
+
 #ifdef ASYNC
 		MPI_Status status_t;
 		int ret = MPI_Wait(&request_t, &status_t);
 		assert(ret == MPI_SUCCESS);
 #endif
-
 		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
 
 		for (int d=0; d < _min_delay; d++) {
-			int delay_idx = (time-min_delay+2+d+max_delay)%(max_delay+1);
-			for (int n_ = 0; n_<node_num; n_++) {
-				int start = cnd->_recv_start[n_*(min_delay+1)+d_];
-				int end = cnd->_recv_start[n_*(minDelay+1)+d_+1];
-				if (end > start) {
-					assert(c_fired_sizes[delay_idx] + end - start <= allNeuronNum);
-					checkCudaErrors(cudaMemcpy(g_buffer->_fire_table + allNeuronNum*delay_idx + c_fired_sizes[delay_idx], cnd->_recv_data + cnd->_recv_offset[n_] + start, sizeof(int)*(end-start), cudaMemcpyHostToDevice));
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int p = 0; p<proc_num; p++) {
+				int start = cnd->_recv_start[p*(_min_delay+1)+d_];
+				int end = cnd->_recv_start[p*(_min_delay+1)+d_+1];
+				if (end > start && (p/_gpu_num != _gpu_group)) {
+					assert(c_fired_sizes[delay_idx] + end - start <= table_cap);
+					copyToGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + start, end-start);
 					c_fired_sizes[delay_idx] += end - start;
 				}
 			}
 		}
-		checkCudaErrors(cudaMemcpy(g_buffer->_fired_sizes, c_fired_sizes, sizeof(int)*(maxDelay+1), cudaMemcpyHostToDevice));
+		copyToGPU(table_sizes, c_fired_sizes, max_delay+1);
 
 		{ // Reset
 			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
