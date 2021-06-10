@@ -169,9 +169,12 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 	cudaDeviceSynchronize();
 	ncclGroupStart();
 	int size = _min_delay + 1;
+	int r_offset = _gpu_group * _gpu_num;
 	for (int r=0; r<_gpu_num; r++) {
-		ncclSend(_gpu_array->_send_start+(r*size), size, ncclInt, r, comm_gpu, s);
-		ncclRecv(_gpu_array->_recv_start+(r*size), size, ncclInt, r, comm_gpu, s);
+		if (r != _gpu_rank) {
+			ncclSend(_gpu_array->_send_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, comm_gpu, s);
+			ncclRecv(_gpu_array->_recv_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, comm_gpu, s);
+		}
 	}
 	ncclGroupEnd();
 
@@ -181,12 +184,14 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu)
 	cudaDeviceSynchronize();
 
 	ncclGroupStart();
-	for (int r=0; r<size_gpu; r++) {
-		if (sc[r] > 0) {
-			ncclSend(sb_gpu, sc[r], ncclFloat, r, comm_gpu, s);
+	for (int r=0; r<_gpu_num; r++) {
+		int num = _send_start[i*(_min_delay+1)+_min_delay];
+		if (num > 0) {
+			ncclSend(_gpu_array->_send_data + _send_offset[r_offset + r], num, NCCL_INTEGER_T, r, comm_gpu, s);
 		}
+		num = _recv_start[i*(_min_delay+1)+_min_delay];
 		if (rc[r] > 0) {
-			ncclRecv(rb_gpu, rc[r], ncclFloat, r, comm_gpu, s);
+			ncclRecv(_gpu_array->_recv_data + _recv_offset[r_offset + r], num, NCCL_INTEGER_T, r, comm_gpu, s);
 		}
 	}
 	ncclGroupEnd();
