@@ -220,13 +220,26 @@ template<typename TID, typename TSIZE>
 int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE *c_table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block)
 {
 	if (curr_delay >= minDelay -1) {
+		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
+
+		for (int d=0; d<_min_delay; d++) {
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int g=0; g<_gpu_num; g++) {
+				int p = _gpu_group * _gpu_num + g;
+				int start = cnd->_recv_start[p*(_min_delay+1)+d_];
+				int end = cnd->_recv_start[p*(_min_delay+1)+d_+1];
+				if (end > start) {
+					gpuMemcpy(tables + table_cap * delay_idx + c_table_sizes[delay_idx], _gpu_array->_recv_data + _recv_offset[p] + start, end - start);
+					c_fired_sizes[delay_idx] += end - start;
+				}
+			}
+		}
 
 #ifdef ASYNC
 		MPI_Status status_t;
 		int ret = MPI_Wait(&request_t, &status_t);
 		assert(ret == MPI_SUCCESS);
 #endif
-		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
 
 		for (int d=0; d < _min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
