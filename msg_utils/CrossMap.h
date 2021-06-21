@@ -18,13 +18,16 @@ public:
 	int load(FILE *f);
 	int compare(CrossMap &m);
 
-protected:
+public:
 	// ID of neurons on this node to index in this map 
 	// index = _idx2index[id]
 	integer_t *_idx2index;
 	// idx in this map to ID of shadow neurons on node j
-	// id = _crossnode_index2idx[index * node_num + j], -1 means no shadow neuron on node j
+	// id = _index2ridx[index * node_num + j], -1 means no shadow neuron on node j
 	integer_t *_index2ridx;
+
+protected:
+	// _num number of neurons on this node
 	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections
 	size_t _cross_size;
 	size_t _num;

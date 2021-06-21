@@ -122,26 +122,27 @@ __global__ void fetch_kernel(integer_t *data, integer_t *offset, integer_t *num,
 }
 
 template<typename TID, typename TSIZE>
-int CrossSpike::fetch(CrossNodeMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int delay, int time, int grid, int block)
+int CrossSpike::fetch_gpu(const CrossMap *map, const TID *tables, const TSIZE *table_sizes, const TSIZE table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block)
 {
 	int delay_idx = time % (max_delay + 1);
-	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->send_offset, _gpu_array->_send_start, map->_idx2index, map->_crossnodeIndex2idx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, delay)
+	int curr_delay = time % _min_delay;
+	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->send_offset, _gpu_array->_send_start, map->_idx2index, map->_crossnodeIndex2idx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, curr_delay)
 }
 
 __global__ void update_kernel(integer_t *start, int proc_num, int min_delay, int curr_delay)
 {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i=tid; i<node_num; i++) {
+	for (int i=tid; i<proc_num; i++) {
 		start[i*(min_delay+1)+curr_delay+2] = start[i*(min_delay+1)+curr_delay+1];
 	}
 }
 
-int CrossSpike::update_gpu(int curr_delay)
+int CrossSpike::update_gpu(const int &curr_delay)
 {
-	if (curr_delay > min_delay -1) {
+	if (curr_delay > _min_delay -1) {
 		if (_proc_num > _gpu_num) {
-			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1), cudaMemcpyDeviceToHost);
-			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[num], cudaMemcpyDeviceToHost);
+			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
+			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
 		}
 		msg_gpu();
 	} else {

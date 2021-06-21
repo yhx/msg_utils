@@ -24,8 +24,8 @@ typedef int integer_t;
 
 #define INTEGER_T_MAX INT_MAX
 #define UINTEGER_T_MAX UINT_MAX
-typedef MPI_UNSIGNED MPI_UINTEGER_T
-typedef MPI_INT MPI_INTEGER_T
+#define MPI_UINTEGER_T MPI_UNSIGNED
+#define MPI_INTEGER_T MPI_INT 
 
 #endif // INTEGER_T
 
@@ -35,23 +35,23 @@ using std::string;
 class CrossSpike {
 public:
 	CrossSpike();
-	CrossSpike(int proc_num, int delay);
+	CrossSpike(int proc_rank, int proc_num, int delay, int gpu_rank=0, int gpu_num=1, int gpu_group=0);
 	CrossSpike(FILE *f);
 	~CrossSpike();
 
 	template<typename TID, typename TSIZE>
-	int fetch_cpu(CrossMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int min_delay, int node_num, int time);
+	int fetch_cpu(const CrossMap *map, const TID *tables, const TSIZE *table_sizes, const TSIZE &table_cap, const int &proc_num, const int &max_delay, const int &time);
 	template<typename TID, typename TSIZE>
-    int upload_cpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay);
-	int update_cpu(int curr_delay);
+    int upload_cpu(TID *tables, TSIZE *table_sizes, const TSIZE &table_cap, const int &max_delay, const int &time);
+	int update_cpu(const int &time);
 
-#ifdef USE_GPU
+// #ifdef USE_GPU
 	template<typename TID, typename TSIZE>
-	int fetch_gpu(CrossNodeMap *map, TID *tables, TSIZE *table_sizes, TSIZE table_cap, int proc_num, int max_delay, int min_delay, int node_num, int time, int grid, int block);
+	int fetch_gpu(const CrossMap *map, const TID *tables, const TSIZE *table_sizes, const TSIZE &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block);
 	template<typename TID, typename TSIZE>
-	int upload_gpu(TID *tables, TSIZE *table_sizes, TSIZE table_cap, int max_delay, int curr_delay, int grid, int block);
-	int update_gpu(int curr_delay);
-#endif // USE_GPU
+	int upload_gpu(TID *tables, TSIZE *table_sizes, const TSIZE &table_cap, const int &max_delay, const int &curr_delay, const int &grid, const int &block);
+	int update_gpu(const int &curr_delay);
+// #endif // USE_GPU
 
 	int send(int dst, int tag, MPI_Comm comm);
 	int recv(int src, int tag, MPI_Comm comm);
@@ -65,9 +65,9 @@ public:
 	int log(int time, FILE *sfile, FILE *rfile);
 
 protected:
-	int msg();
-	int msg_gpu();
-	int msg_mpi();
+	int msg_cpu();
+	int msg_gpu(ncclComm_t &comm_gpu);
+	// int msg_mpi();
 	void reset();
 
 public:
