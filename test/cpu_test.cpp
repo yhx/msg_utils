@@ -86,7 +86,7 @@ int main(int argc, char **argv)
 	cs.alloc();
 
 	for (int t=0; t<DELAY; t++) {
-		cs.fetch_cpu(&map, (uinteger_t *)table, (uinteger_t *)table_sizes, CAP, proc_num, DELAY, proc_num, t);
+		cs.fetch_cpu(&map, (uinteger_t *)table, (uinteger_t *)table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
 		cs.upload_cpu((uinteger_t *)table, (uinteger_t *)table_sizes, CAP, DELAY, t);
 	}

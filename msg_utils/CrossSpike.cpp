@@ -276,31 +276,6 @@ int CrossSpike::load(const string &path)
 	return 0;
 }
 
-template<typename TID, typename TSIZE>
-int CrossSpike::fetch_cpu(const CrossMap *map, const TID *tables, const TSIZE *table_sizes, const TSIZE &table_cap, const int &proc_num, const int &max_delay, const int &time)
-{
-	int delay_idx = time % (max_delay+1);
-	int curr_delay = time % _min_delay;
-	size_t fired_size = table_sizes[delay_idx];
-
-	for (int proc=0; proc<proc_num; proc++) {
-		for (size_t idx=0; idx<fired_size; idx++) {
-			TID nid = tables[table_cap * delay_idx + idx];
-			integer_t tmp = map->_idx2index[nid];
-			if (tmp >= 0) {
-				integer_t map_nid = map->_index2ridx[tmp*proc_num+proc];
-				if (map_nid >= 0) {
-					integer_t idx_t = proc * (_min_delay+1) + curr_delay + 1;
-					assert(idx_t >= 0);
-					_send_data[_send_offset[proc] + _send_start[idx_t]]= map_nid;
-					_send_start[idx_t]++;
-				}
-			}
-		}
-	}
-	return 0;
-}
-
 int CrossSpike::msg_cpu()
 {
 	for (int i=0; i<_proc_num; i++) {
@@ -341,32 +316,6 @@ int CrossSpike::update_cpu(const int &time)
 		}
 	}
 	return 0;
-}
-
-template<typename TID, typename TSIZE>
-int CrossSpike::upload_cpu(TID *tables, TSIZE *table_sizes, const TSIZE &table_cap, const int &max_delay, const int &time)
-{
-	int curr_delay = time % _min_delay;
-	if (curr_delay >= _min_delay - 1) {
-#ifdef ASYNC
-		MPI_Status status_t;
-		int ret = MPI_Wait(&_request, &status_t);
-		assert(ret == MPI_SUCCESS);
-#endif
-		for (int d = 0; d < _min_delay; d++) {
-			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
-			for (int p = 0; p < _proc_num; p++) {
-				int start = _recv_start[p*(_min_delay+1)+d];
-				int end = _recv_start[p*(_min_delay+1)+d+1];
-				for (int i=start; i<end; i++) {
-					tables[table_cap*delay_idx + table_sizes[delay_idx] + i-start] = static_cast<TID>(_recv_data[_recv_offset[p]+i]);
-				}
-				table_sizes[delay_idx] += static_cast<TSIZE>(end - start);
-			}
-		}
-
-		reset();
-	}
 }
 
 bool CrossSpike::equal(const CrossSpike &m)
