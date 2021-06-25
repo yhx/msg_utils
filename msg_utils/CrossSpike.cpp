@@ -81,14 +81,14 @@ void CrossSpike::alloc()
 	// printf("Data Size1: %d\n", data_size);
 	if (data_size > 0) {
 		// printf("Size_t: %lu\n", sizeof(int)*data_size);
-		_recv_data = malloc_c<integer_t>(data_size);
+		_recv_data = malloc_c<nid_t>(data_size);
 	}
 
 	data_size = _send_offset[_proc_num];
 	// printf("Data Size2: %d\n", data_size);
 	if (data_size > 0) {
 		// printf("Size_t: %lu\n", sizeof(int)*data_size);
-		_send_data = malloc_c<integer_t>(data_size);
+		_send_data = malloc_c<nid_t>(data_size);
 	}
 }
 
@@ -126,9 +126,9 @@ int CrossSpike::send(int dst, int tag, MPI_Comm comm)
 	ret = MPI_Send(_send_num, _proc_num, MPI_INTEGER_T, dst, tag+11, comm);
 	assert(ret == MPI_SUCCESS);
 
-	ret = MPI_Send(_recv_data, _recv_offset[_proc_num], MPI_INTEGER_T, dst, tag+12, comm);
+	ret = MPI_Send(_recv_data, _recv_offset[_proc_num], MPI_NID_T, dst, tag+12, comm);
 	assert(ret == MPI_SUCCESS);
-	ret = MPI_Send(_send_data, _send_offset[_proc_num], MPI_INTEGER_T, dst, tag+13, comm);
+	ret = MPI_Send(_send_data, _send_offset[_proc_num], MPI_NID_T, dst, tag+13, comm);
 	assert(ret == MPI_SUCCESS);
 
 	return 14;
@@ -188,9 +188,9 @@ int CrossSpike::recv(int src, int tag, MPI_Comm comm)
 
 	alloc();
 
-	ret = MPI_Recv(_recv_data, _recv_offset[_proc_num], MPI_INTEGER_T, src, tag+12, comm, &status);
+	ret = MPI_Recv(_recv_data, _recv_offset[_proc_num], MPI_NID_T, src, tag+12, comm, &status);
 	assert(ret==MPI_SUCCESS);
-	ret = MPI_Recv(_send_data, _send_offset[_proc_num], MPI_INTEGER_T, src, tag+13, comm, &status);
+	ret = MPI_Recv(_send_data, _send_offset[_proc_num], MPI_NID_T, src, tag+13, comm, &status);
 	assert(ret==MPI_SUCCESS);
 
 	return 14;
@@ -295,10 +295,10 @@ int CrossSpike::msg_cpu()
 	}
 
 #ifdef ASYNC
-	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
+	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
 	assert(ret == MPI_SUCCESS);
 #else
-	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
 #endif
 
@@ -353,7 +353,7 @@ int CrossSpike::log(int time, FILE *sfile, FILE *rfile)
 		for (int d=0; d<_min_delay; d++) {
 			int start = _send_start[n*(_min_delay+1)+d];
 			int end = _send_start[n*(_min_delay+1)+d+1];
-			log_array_noendl(sfile, _send_data + _send_offset[n]+start, end-start);
+			// log_array_noendl(sfile, _send_data + _send_offset[n]+start, end-start);
 			fprintf(sfile, "\t");
 		}
 		fprintf(sfile, "\n");
@@ -366,7 +366,7 @@ int CrossSpike::log(int time, FILE *sfile, FILE *rfile)
 		for (int d=0; d<_min_delay; d++) {
 			int start = _recv_start[n*(_min_delay+1)+d];
 			int end = _recv_start[n*(_min_delay+1)+d+1];
-			log_array_noendl(rfile, _recv_data + _recv_offset[n]+start, end-start);
+			// log_array_noendl(rfile, _recv_data + _recv_offset[n]+start, end-start);
 			fprintf(rfile, "\t");
 		}
 		fprintf(rfile, "\n");
@@ -375,3 +375,56 @@ int CrossSpike::log(int time, FILE *sfile, FILE *rfile)
 	fflush(rfile);
 	return 0;
 }
+
+int CrossSpike::fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const nsize_t &table_cap, const int &proc_num, const int &max_delay, const int &time)
+{
+	int delay_idx = time % (max_delay+1);
+	int curr_delay = time % _min_delay;
+	size_t fired_size = table_sizes[delay_idx];
+
+	for (int proc=0; proc<proc_num; proc++) {
+		for (size_t idx=0; idx<fired_size; idx++) {
+			nid_t nid = tables[table_cap * delay_idx + idx];
+			integer_t tmp = map->_idx2index[nid];
+			if (tmp >= 0) {
+				integer_t map_nid = map->_index2ridx[tmp*proc_num+proc];
+				if (map_nid >= 0) {
+					integer_t idx_t = proc * (_min_delay+1) + curr_delay + 1;
+					assert(idx_t >= 0);
+					_send_data[_send_offset[proc] + _send_start[idx_t]]= map_nid;
+					_send_start[idx_t]++;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+int CrossSpike::upload_cpu(nid_t *tables, nsize_t *table_sizes, const nsize_t &table_cap, const int &max_delay, const int &time)
+{
+	int curr_delay = time % _min_delay;
+	if (curr_delay >= _min_delay - 1) {
+#ifdef ASYNC
+		MPI_Status status_t;
+		int ret = MPI_Wait(&_request, &status_t);
+		assert(ret == MPI_SUCCESS);
+#endif
+		for (int d = 0; d < _min_delay; d++) {
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int p = 0; p < _proc_num; p++) {
+				int start = _recv_start[p*(_min_delay+1)+d];
+				int end = _recv_start[p*(_min_delay+1)+d+1];
+				for (int i=start; i<end; i++) {
+					tables[table_cap*delay_idx + table_sizes[delay_idx] + i-start] = _recv_data[_recv_offset[p]+i];
+				}
+				table_sizes[delay_idx] += static_cast<nsize_t>(end - start);
+			}
+		}
+
+		reset();
+	}
+
+	return 0;
+}
+
+

@@ -65,14 +65,14 @@ int main(int argc, char **argv)
 	}
 
 	
-	uinteger_t table[(DELAY+1) * CAP] = {
+	integer_t table[(DELAY+1) * CAP] = {
 		0, 0, 0, 0,
 		1, 2, 0, 0,
 		2, 3, 0, 0,
 		1, 2, 3, 4
 	};
 
-	uinteger_t table_sizes[DELAY+1] = {1, 2, 3, 4};
+	integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
 	CrossSpike cs(proc_rank, proc_num, DELAY);
 	cs._recv_offset[0] = 0;
@@ -86,9 +86,17 @@ int main(int argc, char **argv)
 	cs.alloc();
 
 	for (int t=0; t<DELAY; t++) {
-		cs.fetch_cpu(&map, (uinteger_t *)table, (uinteger_t *)table_sizes, CAP, proc_num, DELAY, t);
+		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
-		cs.upload_cpu((uinteger_t *)table, (uinteger_t *)table_sizes, CAP, DELAY, t);
+		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
+	}
+
+	for (int i=0; i<DELAY+1; i++) {
+		printf("Rank %d:%d :", proc_rank, table_sizes[i]);
+		for (int j=0; j<table_sizes[i]; j++) {
+			printf("%d ", table[j]);
+		}
+		printf("\n");
 	}
 
 	MPI_Finalize();

@@ -2,6 +2,8 @@
 #include "helper/helper_c.h"
 #include "helper/helper_gpu.h"
 #include "CrossSpike.h"
+#include "CrossSpike.cu.h"
+
 
 CrossSpike::~CrossSpike()
 {
@@ -80,13 +82,6 @@ int CrossSpike::to_gpu()
 	return 0;
 }
 
-__global__ void update_kernel(integer_t *start, int proc_num, int min_delay, int curr_delay)
-{
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i=tid; i<proc_num; i++) {
-		start[i*(min_delay+1)+curr_delay+2] = start[i*(min_delay+1)+curr_delay+1];
-	}
-}
 
 int CrossSpike::update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStream_t &s)
 {
@@ -140,11 +135,11 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu, cudaStream_t &s)
 		int idx = r_offset + r;
 		int num = _send_start[idx*(_min_delay+1)+_min_delay];
 		if (num > 0) {
-			ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_INTEGER_T, r, comm_gpu, s);
+			ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_NID_T, r, comm_gpu, s);
 		}
 		num = _recv_start[idx*(_min_delay+1)+_min_delay];
 		if (num > 0) {
-			ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_INTEGER_T, r, comm_gpu, s);
+			ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_NID_T, r, comm_gpu, s);
 		}
 	}
 	ncclGroupEnd();
@@ -161,12 +156,72 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu, cudaStream_t &s)
 	}
 
 #ifdef ASYNC
-	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
+	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
 	assert(ret == MPI_SUCCESS);
 #else
-	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_INTEGER_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
 #endif
+
+	return 0;
+}
+
+
+int CrossSpike::fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const nsize_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block)
+{
+	int delay_idx = time % (max_delay + 1);
+	int curr_delay = time % _min_delay;
+	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->_send_offset, _gpu_array->_send_start, map->_idx2index, map->_index2ridx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, curr_delay);
+	return 0;
+}
+
+int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const nsize_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block)
+{
+	int curr_delay = time % _min_delay;
+	if (curr_delay >= _min_delay -1) {
+		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
+
+		for (int d=0; d<_min_delay; d++) {
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int g=0; g<_gpu_num; g++) {
+				int p = _gpu_group * _gpu_num + g;
+				int start = _recv_start[p*(_min_delay+1)+d];
+				int end = _recv_start[p*(_min_delay+1)+d+1];
+				if (end > start) {
+					gpuMemcpy(tables + table_cap * delay_idx + c_table_sizes[delay_idx], _gpu_array->_recv_data + _recv_offset[p] + start, end - start);
+					c_table_sizes[delay_idx] += end - start;
+				}
+			}
+		}
+
+#ifdef ASYNC
+		MPI_Status status_t;
+		int ret = MPI_Wait(&_request, &status_t);
+		assert(ret == MPI_SUCCESS);
+#endif
+
+		for (int d=0; d < _min_delay; d++) {
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int p = 0; p<_proc_num; p++) {
+				int start = _recv_start[p*(_min_delay+1)+d];
+				int end = _recv_start[p*(_min_delay+1)+d+1];
+				if (end > start && (p/_gpu_num != _gpu_group)) {
+					assert(c_table_sizes[delay_idx] + end - start <= table_cap);
+					copyToGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + start, end-start);
+					c_table_sizes[delay_idx] += end - start;
+				}
+			}
+		}
+		copyToGPU(table_sizes, c_table_sizes, max_delay+1);
+
+		{ // Reset
+			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
+			gpuMemset(_gpu_array->_send_start, 0, _min_delay * _proc_num + _proc_num);
+
+			memset_c(_recv_num, 0, _proc_num);
+			memset_c(_send_num, 0, _proc_num);
+		}
+	}
 
 	return 0;
 }
