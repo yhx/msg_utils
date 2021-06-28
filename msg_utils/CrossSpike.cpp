@@ -346,33 +346,41 @@ bool CrossSpike::equal(const CrossSpike &m)
 	return ret;
 }
 
-int CrossSpike::log(int time, FILE *sfile, FILE *rfile)
+int CrossSpike::log(int time, const char *sname, const char *rname)
 {
-	fprintf(sfile, "%d: \n", time);
+	FILE sf = fopen_c(sname, "a+");
+	FILE rf = fopen_c(rname, "a+");
+	fprintf(sf, "%d: \n", time);
 	for (int n=0; n<_proc_num; n++) {
 		for (int d=0; d<_min_delay; d++) {
 			int start = _send_start[n*(_min_delay+1)+d];
 			int end = _send_start[n*(_min_delay+1)+d+1];
+			for (int k=start; k<end; k++) {
+				fprintf(sf, FT_NID_T " ", _send_data[_send_offset[n] + k]);
+			}
 			// log_array_noendl(sfile, _send_data + _send_offset[n]+start, end-start);
-			fprintf(sfile, "\t");
+			fprintf(sf, "\t");
 		}
-		fprintf(sfile, "\n");
+		fprintf(sf, "\n");
 	}
-	fprintf(sfile, "\n");
-	fflush(sfile);
+	fprintf(sf, "\n");
+	fflush(sf);
 
-	fprintf(rfile, "%d: \n", time);
+	fprintf(rf, "%d: \n", time);
 	for (int n=0; n<_proc_num; n++) {
 		for (int d=0; d<_min_delay; d++) {
 			int start = _recv_start[n*(_min_delay+1)+d];
 			int end = _recv_start[n*(_min_delay+1)+d+1];
-			// log_array_noendl(rfile, _recv_data + _recv_offset[n]+start, end-start);
-			fprintf(rfile, "\t");
+			for (int k=start; k<end; k++) {
+				fprintf(rf, FT_NID_T " ", _recv_data[_recv_offset[n] + k]);
+			}
+			// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
+			fprintf(rf, "\t");
 		}
-		fprintf(rfile, "\n");
+		fprintf(rf, "\n");
 	}
-	fprintf(rfile, "\n");
-	fflush(rfile);
+	fprintf(rf, "\n");
+	fflush(rf);
 	return 0;
 }
 

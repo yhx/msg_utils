@@ -42,6 +42,12 @@ typedef integer_t nsize_t;
 #define MPI_NID_T MPI_INTEGER_T  
 #define MPI_NSIZE_T MPI_INTEGER_T  
 
+#define PT_NID_T PT_INTEGER_T
+#define PT_NSIZE_T PT_INTEGER_T
+
+#define FT_NID_T FT_INTEGER_T
+#define FT_NSIZE_T FT_INTEGER_T
+
 // #ifdef USE_GPU
 #define NCCL_NID_T NCCL_INTEGER_T
 #define NCCL_NSIZE_T NCCL_INTEGER_T
@@ -79,7 +85,7 @@ public:
 
 	int to_gpu();
 	void alloc();
-	int log(int time, FILE *sfile, FILE *rfile);
+	int log(int time, const char *sname, const char *rname);
 
 protected:
 	int msg_cpu();

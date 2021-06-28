@@ -81,7 +81,11 @@ int main(int argc, char **argv)
 	}
 
 	char name[1024];
+	char names[1024];
+	char namer[1024];
 	sprintf(name, "%s_%d.map", argv[0], proc_rank);
+	sprintf(names, "%s_%d.send", argv[0], proc_rank);
+	sprintf(namer, "%s_%d.recv", argv[0], proc_rank);
 	map.log(name);
 	
 	integer_t table[(DELAY+1) * CAP] = {
@@ -107,6 +111,7 @@ int main(int argc, char **argv)
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
+		cs.log(t, names, namer); 
 		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
 	}
 
