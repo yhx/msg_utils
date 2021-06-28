@@ -348,10 +348,11 @@ bool CrossSpike::equal(const CrossSpike &m)
 
 int CrossSpike::log(int time, const char *sname, const char *rname)
 {
-	FILE sf = fopen_c(sname, "a+");
-	FILE rf = fopen_c(rname, "a+");
-	fprintf(sf, "%d: \n", time);
+	FILE *sf = fopen_c(sname, "a+");
+	FILE *rf = fopen_c(rname, "a+");
+	fprintf(sf, "Time %d: \n", time);
 	for (int n=0; n<_proc_num; n++) {
+		fprintf(sf, "Proc %d: ", n);
 		for (int d=0; d<_min_delay; d++) {
 			int start = _send_start[n*(_min_delay+1)+d];
 			int end = _send_start[n*(_min_delay+1)+d+1];
@@ -366,8 +367,9 @@ int CrossSpike::log(int time, const char *sname, const char *rname)
 	fprintf(sf, "\n");
 	fflush(sf);
 
-	fprintf(rf, "%d: \n", time);
+	fprintf(rf, "Time %d: \n", time);
 	for (int n=0; n<_proc_num; n++) {
+		fprintf(sf, "Proc %d: ", n);
 		for (int d=0; d<_min_delay; d++) {
 			int start = _recv_start[n*(_min_delay+1)+d];
 			int end = _recv_start[n*(_min_delay+1)+d+1];

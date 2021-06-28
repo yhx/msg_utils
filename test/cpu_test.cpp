@@ -23,10 +23,14 @@ int main(int argc, char **argv)
 	MPI_Get_processor_name(processor_name, &name_len);
 	printf("Processor %s, rank %d out of %d processors\n", processor_name, proc_rank, proc_num);
 
-	CrossMap map(N, N, proc_num);
+	CrossMap map(N-1, N, proc_num);
 
 	for (int i=0; i<N; i++) {
-		map._idx2index[i] = i;
+		if (i <= proc_rank) {
+			map._idx2index[i] = i;
+		} else {
+			map._idx2index[i] = i - 1;
+		}
 	}
 
 	switch (proc_rank) {
