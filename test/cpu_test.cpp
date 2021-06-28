@@ -32,28 +32,44 @@ int main(int argc, char **argv)
 	switch (proc_rank) {
 		case 0:
 			for (int s=0; s<N; s++) {
-				if (s != proc_rank) {
+				if (s == proc_rank) {
+					continue;
+				} else if (s < proc_rank) {
+					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+				} else {
 					map._index2ridx[s*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
 		case 1:
 			for (int s=0; s<N; s++) {
-				if (s != proc_rank) {
+				if (s == proc_rank) {
+					continue;
+				} else if (s < proc_rank) {
+					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+				} else {
 					map._index2ridx[s*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
 		case 2:
 			for (int s=0; s<N; s++) {
-				if (s != proc_rank) {
+				if (s == proc_rank) {
+					continue;
+				} else if (s < proc_rank) {
+					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+				} else {
 					map._index2ridx[s*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
 		case 3:
 			for (int s=0; s<N; s++) {
-				if (s != proc_rank) {
+				if (s == proc_rank) {
+					continue;
+				} else if (s < proc_rank) {
+					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+				} else {
 					map._index2ridx[s*proc_num+s] = N + proc_rank;
 				}
 			}
@@ -64,6 +80,9 @@ int main(int argc, char **argv)
 			break;
 	}
 
+	char name[1024];
+	sprintf(name, "%s_%d.map", argv[0], proc_rank);
+	map.log(name);
 	
 	integer_t table[(DELAY+1) * CAP] = {
 		0, 0, 0, 0,
@@ -90,6 +109,7 @@ int main(int argc, char **argv)
 		cs.update_cpu(t);
 		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
 	}
+
 
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);

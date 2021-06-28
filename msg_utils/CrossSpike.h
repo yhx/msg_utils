@@ -8,30 +8,31 @@
 #include "mpi.h"
 #include "nccl.h"
 
-#include "CrossMap.h"
+#include "helper/helper_type.h"
 
+#include "CrossMap.h"
 
 
 // #include "../net/Connection.h"
 
 #define ASYNC
 
-#ifndef INTEGER_T
-#define INTEGER_T
-typedef unsigned int uinteger_t;
-typedef int integer_t;
-
-#define INTEGER_T_MAX INT_MAX
-#define UINTEGER_T_MAX UINT_MAX
-#define MPI_UINTEGER_T MPI_UNSIGNED
-#define MPI_INTEGER_T MPI_INT 
-
-// #ifdef USE_GPU
-#define NCCL_INTEGER_T ncclInt32
-#define NCCL_UINTEGER_T ncclUint32 
-// #endif
-
-#endif // INTEGER_T
+// #ifndef INTEGER_T
+// #define INTEGER_T
+// typedef unsigned int uinteger_t;
+// typedef int integer_t;
+// 
+// #define INTEGER_T_MAX INT_MAX
+// #define UINTEGER_T_MAX UINT_MAX
+// #define MPI_UINTEGER_T MPI_UNSIGNED
+// #define MPI_INTEGER_T MPI_INT 
+// 
+// // #ifdef USE_GPU
+// #define NCCL_INTEGER_T ncclInt32
+// #define NCCL_UINTEGER_T ncclUint32 
+// // #endif
+// 
+// #endif // INTEGER_T
 
 #ifndef NID_T
 #define NID_T

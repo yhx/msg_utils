@@ -18,6 +18,8 @@ public:
 	int load(FILE *f);
 	int compare(CrossMap &m);
 
+	int log(const char *name);
+
 public:
 	// ID of neurons on this node to index in this map 
 	// index = _idx2index[id]

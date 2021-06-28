@@ -1,4 +1,5 @@
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 
@@ -100,5 +101,23 @@ int CrossMap::compare(CrossMap &m)
 	equal = is_equal_array(_index2ridx, m._index2ridx, _cross_size) && equal;
 	
 	return equal;
+}
+
+int CrossMap::log(const char *name)
+{
+	FILE *f = fopen_c(name, "w+");
+	fprintf(f, "%ld\n", _num);
+	fprintf(f, "%ld\n", _cross_size);
+	for (size_t i=0; i<_num; i++) {
+		fprintf(f, PT_INTEGER_T("", " "), _idx2index[i]);
+	}
+	fprintf(f, "\n");
+	for (size_t i=0; i<_cross_size; i++) {
+		fprintf(f, PT_INTEGER_T("", " "), _index2ridx[i]);
+	}
+	fprintf(f, "\n");
+	fclose_c(f);
+
+	return 0;
 }
 
