@@ -85,7 +85,7 @@ public:
 
 	int to_gpu();
 	void alloc();
-	int log(int time, const char *sname, const char *rname);
+	int log(int time, const char *name);
 
 protected:
 	int msg_cpu();

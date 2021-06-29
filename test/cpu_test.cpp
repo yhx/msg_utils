@@ -23,11 +23,13 @@ int main(int argc, char **argv)
 	MPI_Get_processor_name(processor_name, &name_len);
 	printf("Processor %s, rank %d out of %d processors\n", processor_name, proc_rank, proc_num);
 
-	CrossMap map(N-1, N, proc_num);
+	CrossMap map(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {
-		if (i <= proc_rank) {
+		if (i < proc_rank) {
 			map._idx2index[i] = i;
+		} else if (i ==  proc_rank){
+			map._idx2index[i] = -1;
 		} else {
 			map._idx2index[i] = i - 1;
 		}
@@ -41,7 +43,7 @@ int main(int argc, char **argv)
 				} else if (s < proc_rank) {
 					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[s*proc_num+s] = N + proc_rank;
+					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -52,7 +54,7 @@ int main(int argc, char **argv)
 				} else if (s < proc_rank) {
 					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[s*proc_num+s] = N + proc_rank;
+					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -63,7 +65,7 @@ int main(int argc, char **argv)
 				} else if (s < proc_rank) {
 					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[s*proc_num+s] = N + proc_rank;
+					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -74,7 +76,7 @@ int main(int argc, char **argv)
 				} else if (s < proc_rank) {
 					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[s*proc_num+s] = N + proc_rank;
+					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -85,11 +87,9 @@ int main(int argc, char **argv)
 	}
 
 	char name[1024];
-	char names[1024];
-	char namer[1024];
+	char name_t[1024];
 	sprintf(name, "%s_%d.map", argv[0], proc_rank);
-	sprintf(names, "%s_%d.send", argv[0], proc_rank);
-	sprintf(namer, "%s_%d.recv", argv[0], proc_rank);
+	sprintf(name_t, "%s_%d", argv[0], proc_rank);
 	map.log(name);
 	
 	integer_t table[(DELAY+1) * CAP] = {
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
-		cs.log(t, names, namer); 
+		cs.log(t, name_t); 
 		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
 	}
 

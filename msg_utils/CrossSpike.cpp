@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <string>
 
 #include "helper/helper_c.h"
 #include "helper/helper_array_c.h"
 #include "msg_utils.h"
 #include "CrossSpike.h"
+
+using std::string;
 
 CrossSpike::CrossSpike()
 {
@@ -346,10 +349,60 @@ bool CrossSpike::equal(const CrossSpike &m)
 	return ret;
 }
 
-int CrossSpike::log(int time, const char *sname, const char *rname)
+int CrossSpike::log(int time, const char *name)
 {
-	FILE *sf = fopen_c(sname, "a+");
-	FILE *rf = fopen_c(rname, "a+");
+	string s(name);
+	FILE *sf = fopen_c((s+".send").c_str(), "a+");
+	FILE *rf = fopen_c((s+".recv").c_str(), "a+");
+
+	if (time == 0) {
+		FILE *f = fopen_c((s+".cs").c_str(), "w+");
+		fprintf(f, "Proc rank: %d\n", _proc_rank);
+		fprintf(f, "Proc num:  %d\n", _proc_num);
+		fprintf(f, "GPU rank:  %d\n", _gpu_rank);
+		fprintf(f, "GPU num:   %d\n", _gpu_num);
+		fprintf(f, "GPU group: %d\n", _gpu_group);
+		fprintf(f, "Min delay: " FT_INTEGER_T "\n", _min_delay);
+
+		fprintf(f, "Recv offset: ");
+		for (size_t i=0; i<_proc_num+1; i++) {
+			fprintf(f, FT_INTEGER_T " ", _recv_offset[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Recv start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(f, FT_INTEGER_T " ", _recv_start[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Recv offset: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(f, FT_INTEGER_T " ", _recv_num[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Send offset: ");
+		for (size_t i=0; i<_proc_num+1; i++) {
+			fprintf(f, FT_INTEGER_T " ", _send_offset[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Send start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(f, FT_INTEGER_T " ", _send_start[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Send offset: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(f, FT_INTEGER_T " ", _send_num[i]);
+		}
+		fprintf(f, "\n");
+
+		fclose_c(f);
+	}
+
 	fprintf(sf, "Time %d: \n", time);
 	for (int n=0; n<_proc_num; n++) {
 		fprintf(sf, "Proc %d: ", n);
