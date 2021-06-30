@@ -352,8 +352,6 @@ bool CrossSpike::equal(const CrossSpike &m)
 int CrossSpike::log(int time, const char *name)
 {
 	string s(name);
-	FILE *sf = fopen_c((s+".send").c_str(), "a+");
-	FILE *rf = fopen_c((s+".recv").c_str(), "a+");
 
 	if (time == 0) {
 		FILE *f = fopen_c((s+".cs").c_str(), "w+");
@@ -370,72 +368,96 @@ int CrossSpike::log(int time, const char *name)
 		}
 		fprintf(f, "\n");
 
-		fprintf(f, "Recv start: ");
-		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
-			fprintf(f, FT_INTEGER_T " ", _recv_start[i]);
-		}
-		fprintf(f, "\n");
-
-		fprintf(f, "Recv offset: ");
-		for (size_t i=0; i<_proc_num; i++) {
-			fprintf(f, FT_INTEGER_T " ", _recv_num[i]);
-		}
-		fprintf(f, "\n");
-
 		fprintf(f, "Send offset: ");
 		for (size_t i=0; i<_proc_num+1; i++) {
 			fprintf(f, FT_INTEGER_T " ", _send_offset[i]);
 		}
 		fprintf(f, "\n");
-
-		fprintf(f, "Send start: ");
-		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
-			fprintf(f, FT_INTEGER_T " ", _send_start[i]);
-		}
-		fprintf(f, "\n");
-
-		fprintf(f, "Send offset: ");
-		for (size_t i=0; i<_proc_num; i++) {
-			fprintf(f, FT_INTEGER_T " ", _send_num[i]);
-		}
-		fprintf(f, "\n");
-
 		fclose_c(f);
 	}
 
-	fprintf(sf, "Time %d: \n", time);
-	for (int n=0; n<_proc_num; n++) {
-		fprintf(sf, "Proc %d: ", n);
-		for (int d=0; d<_min_delay; d++) {
-			int start = _send_start[n*(_min_delay+1)+d];
-			int end = _send_start[n*(_min_delay+1)+d+1];
-			for (int k=start; k<end; k++) {
-				fprintf(sf, FT_NID_T " ", _send_data[_send_offset[n] + k]);
-			}
-			// log_array_noendl(sfile, _send_data + _send_offset[n]+start, end-start);
-			fprintf(sf, "\t");
+	{
+		FILE *sf = fopen_c((s+".send").c_str(), "a+");
+		fprintf(sf, "Time %d: \n", time);
+
+
+		fprintf(sf, "Send start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(sf, FT_INTEGER_T " ", _send_start[i]);
 		}
 		fprintf(sf, "\n");
-	}
-	fprintf(sf, "\n");
-	fflush(sf);
 
-	fprintf(rf, "Time %d: \n", time);
-	for (int n=0; n<_proc_num; n++) {
-		fprintf(sf, "Proc %d: ", n);
+		fprintf(sf, "Send num: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(sf, FT_INTEGER_T " ", _send_num[i]);
+		}
+		fprintf(sf, "\n");
+
+		fprintf(sf, "Send data: ");
+		for (size_t i=0; i<_send_offset[_proc_num]; i++) {
+			fprintf(sf, FT_NID_T " ", _send_data[i]);
+		}
+		fprintf(sf, "\n");
+
 		for (int d=0; d<_min_delay; d++) {
-			int start = _recv_start[n*(_min_delay+1)+d];
-			int end = _recv_start[n*(_min_delay+1)+d+1];
-			for (int k=start; k<end; k++) {
-				fprintf(rf, FT_NID_T " ", _recv_data[_recv_offset[n] + k]);
+			fprintf(sf, "Delay %d: \n", d);
+			for (int n=0; n<_proc_num; n++) {
+				fprintf(sf, "Proc %d: ", n);
+				int start = _send_start[n*(_min_delay+1)+d];
+				int end = _send_start[n*(_min_delay+1)+d+1];
+				for (int k=start; k<end; k++) {
+					fprintf(sf, FT_NID_T " ", _send_data[_send_offset[n] + k]);
+				}
+				fprintf(sf, "\n");
 			}
-			// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
-			fprintf(rf, "\t");
+			fprintf(sf, "\n");
+		}
+		fprintf(sf, "\n");
+		fflush(sf);
+		fclose_c(sf);
+	}
+
+	{
+		FILE *rf = fopen_c((s+".recv").c_str(), "a+");
+
+		fprintf(rf, "Time %d: \n", time);
+
+		fprintf(rf, "Recv start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(rf, FT_INTEGER_T " ", _recv_start[i]);
 		}
 		fprintf(rf, "\n");
+
+		fprintf(rf, "Recv num: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(rf, FT_INTEGER_T " ", _recv_num[i]);
+		}
+		fprintf(rf, "\n");
+
+		fprintf(rf, "Recv data: ");
+		for (size_t i=0; i<_recv_offset[_proc_num]; i++) {
+			fprintf(rf, FT_NID_T " ", _recv_data[i]);
+		}
+		fprintf(rf, "\n");
+
+		for (int d=0; d<_min_delay; d++) {
+			fprintf(rf, "Delay %d: \n", d);
+			for (int n=0; n<_proc_num; n++) {
+				fprintf(rf, "Proc %d: ", n);
+				int start = _recv_start[n*(_min_delay+1)+d];
+				int end = _recv_start[n*(_min_delay+1)+d+1];
+				for (int k=start; k<end; k++) {
+					fprintf(rf, FT_NID_T " ", _recv_data[_recv_offset[n] + k]);
+				}
+				// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
+				fprintf(rf, "\n");
+			}
+			fprintf(rf, "\n");
+		}
+		fprintf(rf, "\n");
+		fflush(rf);
+		fclose_c(rf);
 	}
-	fprintf(rf, "\n");
-	fflush(rf);
 	return 0;
 }
 

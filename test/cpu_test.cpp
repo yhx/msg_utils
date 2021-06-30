@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../msg_utils/msg_utils.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
 
@@ -93,10 +94,10 @@ int main(int argc, char **argv)
 	map.log(name);
 	
 	integer_t table[(DELAY+1) * CAP] = {
-		0, 0, 0, 0,
-		1, 2, 0, 0,
-		2, 3, 0, 0,
-		1, 2, 3, 4
+		0, 0, 0, 0, 0, 0, 0, 0,
+		1, 2, 0, 0, 0, 0, 0, 0,
+		2, 3, 0, 0, 0, 0, 0, 0,
+		1, 2, 3, 4, 0, 0, 0, 0
 	};
 
 	integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
@@ -106,11 +107,13 @@ int main(int argc, char **argv)
 	cs._send_offset[0] = 0;
 
 	for (int i=0; i<proc_num; i++) {
-		cs._recv_offset[i+1] = cs._recv_offset[i] + DELAY;
-		cs._send_offset[i+1] = cs._send_offset[i] + DELAY;
+		cs._recv_offset[i+1] = cs._recv_offset[i] + DELAY * (N-1);
+		cs._send_offset[i+1] = cs._send_offset[i] + DELAY * (N-1);
 	}
 
 	cs.alloc();
+
+	to_attach();
 
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
@@ -123,7 +126,7 @@ int main(int argc, char **argv)
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);
 		for (int j=0; j<table_sizes[i]; j++) {
-			printf("%d ", table[j]);
+			printf("%d ", table[j + i * CAP]);
 		}
 		printf("\n");
 	}
