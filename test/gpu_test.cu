@@ -5,14 +5,36 @@
 #include <stdlib.h>
 #include <vector>
 
+#include "nccl.h"
+
 #include "catch.hpp"
 
 #include "../msg_utils/msg_utils.h"
+#include "../msg_utils/helper/helper_gpu.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
 
 using std::vector;
 
+#define MPICHECK(cmd) do {                          \
+  int e = cmd;                                      \
+  if( e != MPI_SUCCESS ) {                          \
+    printf("Failed: MPI error %s:%d '%d'\n",        \
+        __FILE__,__LINE__, e);                      \
+    exit(EXIT_FAILURE);                             \
+  }                                                 \
+} while(0)
+
+#define NCCLCHECK(cmd) do {                         \
+  ncclResult_t r = cmd;                             \
+  if (r!= ncclSuccess) {                            \
+    printf("Failed, NCCL error %s:%d '%s'\n",       \
+        __FILE__,__LINE__,ncclGetErrorString(r));   \
+    exit(EXIT_FAILURE);                             \
+  }                                                 \
+} while(0)
+
+const int GPU_SIZE = 2;
 const int DELAY = 3;
 const int N = 4;
 const uinteger_t CAP = 8;
@@ -89,7 +111,33 @@ int main(int argc, char **argv)
 	char processor_name[MPI_MAX_PROCESSOR_NAME];
 	int name_len;
 	MPI_Get_processor_name(processor_name, &name_len);
-	printf("Processor %s, rank %d out of %d processors\n", processor_name, proc_rank, proc_num);
+
+	MPI_Comm comm_mpi;
+	MPI_Comm_split(MPI_COMM_WORLD, proc_rank/GPU_SIZE, proc_rank, &comm_mpi);
+
+	int gpu_rank = 0;
+	int gpu_num = 0;
+
+	MPI_Comm_rank(comm_mpi, &gpu_rank);
+	MPI_Comm_size(comm_mpi, &gpu_num);
+
+	printf("Processor %s, rank %d out of %d processes, rank %d out of %d GPUs\n", processor_name, proc_rank, proc_num, gpu_rank, gpu_num);
+
+	gpuDevice(gpu_rank);
+
+	ncclUniqueId id;
+	ncclComm_t comm_gpu;
+	cudaStream_t s;
+
+	checkCudaErrors(cudaStreamCreate(&s));
+
+	if (0 == gpu_rank) {
+		ncclGetUniqueId(&id);
+	}
+
+	MPICHECK(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_mpi));
+
+	NCCLCHECK(ncclCommInitRank(&comm_gpu, gpu_num, id, gpu_rank));
 
 	CrossMap map(N, N-1, proc_num);
 
@@ -160,6 +208,8 @@ int main(int argc, char **argv)
 	sprintf(name_t, "%s_%d", argv[0], proc_rank);
 	map.log(name);
 
+	map.to_gpu();
+
 	CrossSpike cs(proc_rank, proc_num, DELAY);
 	cs._recv_offset[0] = 0;
 	cs._send_offset[0] = 0;
@@ -170,15 +220,22 @@ int main(int argc, char **argv)
 	}
 
 	cs.alloc();
+	cs.to_gpu();
 
 	to_attach();
 
+	nid_t *table_gpu = copyToGPU(table,  (DELAY+1) * CAP);
+	nid_t *table_sizes_gpu = copyToGPU(table_sizes, DELAY+1);
+
 	for (int t=0; t<DELAY; t++) {
-		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
-		cs.update_cpu(t);
+		cs.fetch_gpu(&map, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, DELAY, t, 2, 32);
+		cs.update_gpu(t, comm_gpu, s);
 		cs.log(t, name_t); 
-		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
+		cs.upload_gpu((nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, (nsize_t *)table_sizes, CAP, DELAY, t, 2, 32);
 	}
+
+	copyFromGPU(table, table_gpu, (DELAY+1) * CAP);
+	copyFromGPU(table_sizes, table_sizes_gpu, DELAY+1);
 
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);

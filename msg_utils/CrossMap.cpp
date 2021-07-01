@@ -13,6 +13,8 @@ CrossMap::CrossMap()
 	_index2ridx = NULL;
 	_cross_size = 0;
 	_num = 0;
+
+	_gpu_array = NULL;
 }
 
 CrossMap::CrossMap(size_t num, size_t cross_num, size_t node_num) : CrossMap(num, cross_num * node_num)
@@ -33,6 +35,8 @@ CrossMap:: CrossMap(size_t num, size_t cross_size)
 	} else {
 		_index2ridx = NULL;
 	}
+
+	_gpu_array = NULL;
 }
 
 int CrossMap::send(int dest, int tag, MPI_Comm comm) 

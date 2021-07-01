@@ -11,12 +11,15 @@ public:
 	CrossMap();
 	CrossMap(size_t num, size_t cross_size);
 	CrossMap(size_t num, size_t cross_num, size_t node_num);
+	~CrossMap();
 
 	int send(int dest, int tag, MPI_Comm comm);
 	int recv(int src, int tag, MPI_Comm comm);
 	int save(FILE *f);
 	int load(FILE *f);
 	int compare(CrossMap &m);
+
+	int to_gpu();
 
 	int log(const char *name);
 
@@ -29,6 +32,9 @@ public:
 	integer_t *_index2ridx;
 
 protected:
+
+	CrossMap * _gpu_array;
+
 	// _num number of neurons on this node
 	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections
 	size_t _cross_size;

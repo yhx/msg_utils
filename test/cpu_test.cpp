@@ -1,20 +1,87 @@
 
+#define CATCH_CONFIG_RUNNER
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <vector>
+
+#include "catch.hpp"
 
 #include "../msg_utils/msg_utils.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
 
+using std::vector;
+
 const int DELAY = 3;
 const int N = 4;
 const uinteger_t CAP = 8;
+
+int proc_rank = -1;
+
+integer_t table[(DELAY+1) * CAP] = {
+	0, 0, 0, 0, 0, 0, 0, 0,
+	1, 2, 0, 0, 0, 0, 0, 0,
+	2, 3, 0, 0, 0, 0, 0, 0,
+	1, 2, 3, 4, 0, 0, 0, 0
+};
+
+integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
+
+
+TEST_CASE("CHECK RESULTS", "") {
+	switch (proc_rank) {
+		case 0:
+			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
+					Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
+			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
+					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
+			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
+					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
+			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
+			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
+			break;
+		case 1:
+			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
+					Catch::UnorderedEquals(vector<integer_t>{0}));
+			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
+					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
+			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
+					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3}));
+			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
+			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
+			break;
+		case 2:
+			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
+					Catch::UnorderedEquals(vector<integer_t>{0}));
+			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
+					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
+			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
+					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
+			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
+			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
+			break;
+		case 3:
+			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
+					Catch::UnorderedEquals(vector<integer_t>{0}));
+			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
+					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
+			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
+					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
+			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
+			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
+			break;
+		default:
+			printf("Test case should carry out on four processes\n");
+			exit(-1);
+			break;
+	}
+}
 
 int main(int argc, char **argv)
 {
 	MPI_Init(&argc, &argv);
 
-	int proc_rank = 0;
 	int proc_num = 0;
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &proc_num);
@@ -92,15 +159,6 @@ int main(int argc, char **argv)
 	sprintf(name, "%s_%d.map", argv[0], proc_rank);
 	sprintf(name_t, "%s_%d", argv[0], proc_rank);
 	map.log(name);
-	
-	integer_t table[(DELAY+1) * CAP] = {
-		0, 0, 0, 0, 0, 0, 0, 0,
-		1, 2, 0, 0, 0, 0, 0, 0,
-		2, 3, 0, 0, 0, 0, 0, 0,
-		1, 2, 3, 4, 0, 0, 0, 0
-	};
-
-	integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
 	CrossSpike cs(proc_rank, proc_num, DELAY);
 	cs._recv_offset[0] = 0;
@@ -122,7 +180,6 @@ int main(int argc, char **argv)
 		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
 	}
 
-
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);
 		for (int j=0; j<table_sizes[i]; j++) {
@@ -131,5 +188,11 @@ int main(int argc, char **argv)
 		printf("\n");
 	}
 
+	// MPI_Barrier(MPI_COMM_WORLD);
+
+	int result = Catch::Session().run( argc, argv );
+
 	MPI_Finalize();
+
+	return result;
 }
