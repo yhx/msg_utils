@@ -64,6 +64,8 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_rank, int
 	_send_num = malloc_c<integer_t>(proc_num);
 	_send_data = NULL;
 
+	_gpu_array = NULL;
+
 	reset();
 }
 
