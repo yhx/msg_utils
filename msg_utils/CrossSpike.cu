@@ -171,7 +171,7 @@ int CrossSpike::fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_
 {
 	int delay_idx = time % (max_delay + 1);
 	int curr_delay = time % _min_delay;
-	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->_send_offset, _gpu_array->_send_start, map->_idx2index, map->_index2ridx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, curr_delay);
+	fetch_kernel<<<grid, block>>>(_gpu_array->_send_data, _gpu_array->_send_offset, _gpu_array->_send_start, map->_gpu_array->_idx2index, map->_gpu_array->_index2ridx, tables, table_sizes, table_cap, proc_num, delay_idx, _min_delay, curr_delay);
 	return 0;
 }
 

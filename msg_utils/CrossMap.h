@@ -31,9 +31,10 @@ public:
 	// id = _index2ridx[index * node_num + j], -1 means no shadow neuron on node j
 	integer_t *_index2ridx;
 
+	CrossMap * _gpu_array;
+
 protected:
 
-	CrossMap * _gpu_array;
 
 	// _num number of neurons on this node
 	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections

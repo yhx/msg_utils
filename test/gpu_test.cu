@@ -139,15 +139,15 @@ int main(int argc, char **argv)
 
 	NCCLCHECK(ncclCommInitRank(&comm_gpu, gpu_num, id, gpu_rank));
 
-	CrossMap map(N, N-1, proc_num);
+	CrossMap cm(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {
 		if (i < proc_rank) {
-			map._idx2index[i] = i;
+			cm._idx2index[i] = i;
 		} else if (i ==  proc_rank){
-			map._idx2index[i] = -1;
+			cm._idx2index[i] = -1;
 		} else {
-			map._idx2index[i] = i - 1;
+			cm._idx2index[i] = i - 1;
 		}
 	}
 
@@ -157,9 +157,9 @@ int main(int argc, char **argv)
 				if (s == proc_rank) {
 					continue;
 				} else if (s < proc_rank) {
-					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+					cm._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
+					cm._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -168,9 +168,9 @@ int main(int argc, char **argv)
 				if (s == proc_rank) {
 					continue;
 				} else if (s < proc_rank) {
-					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+					cm._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
+					cm._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -179,9 +179,9 @@ int main(int argc, char **argv)
 				if (s == proc_rank) {
 					continue;
 				} else if (s < proc_rank) {
-					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+					cm._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
+					cm._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -190,9 +190,9 @@ int main(int argc, char **argv)
 				if (s == proc_rank) {
 					continue;
 				} else if (s < proc_rank) {
-					map._index2ridx[s*proc_num+s] = N + proc_rank - 1;
+					cm._index2ridx[s*proc_num+s] = N + proc_rank - 1;
 				} else {
-					map._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
+					cm._index2ridx[(s-1)*proc_num+s] = N + proc_rank;
 				}
 			}
 			break;
@@ -206,9 +206,9 @@ int main(int argc, char **argv)
 	char name_t[1024];
 	sprintf(name, "%s_%d.map", argv[0], proc_rank);
 	sprintf(name_t, "%s_%d", argv[0], proc_rank);
-	map.log(name);
+	cm.log(name);
 
-	map.to_gpu();
+	cm.to_gpu();
 
 	CrossSpike cs(proc_rank, proc_num, DELAY);
 	cs._recv_offset[0] = 0;
@@ -228,7 +228,7 @@ int main(int argc, char **argv)
 	nid_t *table_sizes_gpu = copyToGPU(table_sizes, DELAY+1);
 
 	for (int t=0; t<DELAY; t++) {
-		cs.fetch_gpu(&map, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, DELAY, t, 2, 32);
+		cs.fetch_gpu(&cm, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, DELAY, t, 2, 32);
 		cs.update_gpu(t, comm_gpu, s);
 		cs.log(t, name_t); 
 		cs.upload_gpu((nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, (nsize_t *)table_sizes, CAP, DELAY, t, 2, 32);
