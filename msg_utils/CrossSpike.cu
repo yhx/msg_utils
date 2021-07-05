@@ -85,7 +85,7 @@ int CrossSpike::to_gpu()
 
 int CrossSpike::update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStream_t &s)
 {
-	if (curr_delay > _min_delay -1) {
+	if (curr_delay >= _min_delay -1) {
 		if (_proc_num > _gpu_num) {
 			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
 			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);

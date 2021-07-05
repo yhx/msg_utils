@@ -351,7 +351,7 @@ bool CrossSpike::equal(const CrossSpike &m)
 	return ret;
 }
 
-int CrossSpike::log(int time, const char *name)
+int CrossSpike::log_cpu(int time, const char *name)
 {
 	string s(name);
 
