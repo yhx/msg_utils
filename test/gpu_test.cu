@@ -230,7 +230,7 @@ int main(int argc, char **argv)
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_gpu(&cm, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, DELAY, t, 2, 32);
 		cs.update_gpu(t, comm_gpu, s);
-		cs.log(t, name_t); 
+		cs.log_gpu(t, name_t); 
 		cs.upload_gpu((nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, (nsize_t *)table_sizes, CAP, DELAY, t, 2, 32);
 	}
 

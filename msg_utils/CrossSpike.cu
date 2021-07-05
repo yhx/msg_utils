@@ -226,4 +226,110 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 	return 0;
 }
 
+int CrossSpike::log_gpu(int time, const char *name)
+{
+	log_cpu(time, name);
+
+	string s(name);
+
+	integer_t *start = copyFromGPU(_gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
+
+	integer_t *num = copyFromGPU(_gpu_array->_send_num, _proc_num);
+
+	{
+		FILE *sf = fopen_c((s+".gpu.send").c_str(), "a+");
+		fprintf(sf, "Time %d: \n", time);
+
+
+		fprintf(sf, "Send start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(sf, FT_INTEGER_T " ", start[i]);
+		}
+		fprintf(sf, "\n");
+
+		fprintf(sf, "Send num: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(sf, FT_INTEGER_T " ", num[i]);
+		}
+		fprintf(sf, "\n");
+
+		nid_t * data = copyFromGPU(_gpu_array->_send_data, _send_offset[_proc_num]);
+		fprintf(sf, "Send data: ");
+		for (size_t i=0; i<_send_offset[_proc_num]; i++) {
+			fprintf(sf, FT_NID_T " ", data[i]);
+		}
+		fprintf(sf, "\n");
+
+		for (int d=0; d<_min_delay; d++) {
+			fprintf(sf, "Delay %d: \n", d);
+			for (int n=0; n<_proc_num; n++) {
+				fprintf(sf, "Proc %d: ", n);
+				int st = start[n*(_min_delay+1)+d];
+				int end = start[n*(_min_delay+1)+d+1];
+				for (int k=st; k<end; k++) {
+					fprintf(sf, FT_NID_T " ", data[_send_offset[n] + k]);
+				}
+				fprintf(sf, "\n");
+			}
+			fprintf(sf, "\n");
+		}
+		fprintf(sf, "\n");
+		fflush(sf);
+		fclose_c(sf);
+		free_c(data);
+	}
+
+	{
+		copyFromGPU(start, _gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
+
+		copyFromGPU(num, _gpu_array->_send_num, _proc_num);
+		FILE *rf = fopen_c((s+".gpu.recv").c_str(), "a+");
+
+		fprintf(rf, "Time %d: \n", time);
+
+		fprintf(rf, "Recv start: ");
+		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+			fprintf(rf, FT_INTEGER_T " ", start[i]);
+		}
+		fprintf(rf, "\n");
+
+		fprintf(rf, "Recv num: ");
+		for (size_t i=0; i<_proc_num; i++) {
+			fprintf(rf, FT_INTEGER_T " ", num[i]);
+		}
+		fprintf(rf, "\n");
+
+		nid_t *data = copyFromGPU(_gpu_array->_recv_data, _recv_offset[_proc_num]);
+		fprintf(rf, "Recv data: ");
+		for (size_t i=0; i<_recv_offset[_proc_num]; i++) {
+			fprintf(rf, FT_NID_T " ", data[i]);
+		}
+		fprintf(rf, "\n");
+
+		for (int d=0; d<_min_delay; d++) {
+			fprintf(rf, "Delay %d: \n", d);
+			for (int n=0; n<_proc_num; n++) {
+				fprintf(rf, "Proc %d: ", n);
+				int st = start[n*(_min_delay+1)+d];
+				int end = start[n*(_min_delay+1)+d+1];
+				for (int k=st; k<end; k++) {
+					fprintf(rf, FT_NID_T " ", data[_recv_offset[n] + k]);
+				}
+				// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
+				fprintf(rf, "\n");
+			}
+			fprintf(rf, "\n");
+		}
+		fprintf(rf, "\n");
+		fflush(rf);
+		fclose_c(rf);
+		free_c(data);
+	}
+
+	free_c(start);
+	free_c(num);
+
+	return 0;
+}
+
 

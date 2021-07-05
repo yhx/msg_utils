@@ -176,7 +176,7 @@ int main(int argc, char **argv)
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
-		cs.log(t, name_t); 
+		cs.log_cpu(t, name_t); 
 		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
 	}
 
