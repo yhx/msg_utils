@@ -379,7 +379,7 @@ int CrossSpike::log_cpu(int time, const char *name)
 	}
 
 	{
-		FILE *sf = fopen_c((s+".send").c_str(), "a+");
+		FILE *sf = fopen_c((s+".send").c_str(), time == 0 ? "w+" : "a+");
 		fprintf(sf, "Time %d: \n", time);
 
 
@@ -420,7 +420,7 @@ int CrossSpike::log_cpu(int time, const char *name)
 	}
 
 	{
-		FILE *rf = fopen_c((s+".recv").c_str(), "a+");
+		FILE *rf = fopen_c((s+".recv").c_str(), time == 0 ? "w+" : "a+");
 
 		fprintf(rf, "Time %d: \n", time);
 

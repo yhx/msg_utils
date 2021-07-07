@@ -234,8 +234,11 @@ int main(int argc, char **argv)
 		cs.upload_gpu((nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, (nsize_t *)table_sizes, CAP, DELAY, t, 2, 32);
 	}
 
+
 	copyFromGPU(table, table_gpu, (DELAY+1) * CAP);
 	copyFromGPU(table_sizes, table_sizes_gpu, DELAY+1);
+
+	MPI_Barrier(MPI_COMM_WORLD);
 
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);
@@ -245,7 +248,6 @@ int main(int argc, char **argv)
 		printf("\n");
 	}
 
-	// MPI_Barrier(MPI_COMM_WORLD);
 
 	int result = Catch::Session().run( argc, argv );
 

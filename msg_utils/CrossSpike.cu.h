@@ -17,12 +17,12 @@ __global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const
 
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	TSIZE fired_size = fired_sizes[delay_idx];
-	for (int node = 0; node < proc_num; node++) {
+	for (int proc = 0; proc < proc_num; proc++) {
 		for (int idx = tid; idx < fired_size; idx += blockDim.x * gridDim.x) {
 			TID nid = static_cast<TID>(fired_table[fired_cap*delay_idx + idx]);
 			integer_t tmp = idx2index[nid];
 			if (tmp >= 0) {
-				integer_t map_nid = index2ridx[tmp*proc_num + node];
+				integer_t map_nid = index2ridx[tmp*proc_num + proc];
 				if (map_nid >= 0) {
 					size_t test_loc = static_cast<size_t>(atomicAdd(const_cast<int*>(&cross_cnt), 1));
 					if (test_loc < MAX_BLOCK_SIZE) {
@@ -33,8 +33,8 @@ __global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const
 			__syncthreads();
 
 			if (cross_cnt > 0) {
-				int idx_t = node * (min_delay + 1) + curr_delay + 1;
-				merge2array(cross_neuron_id, cross_cnt, data + offset[node] + num[idx_t], &(num[idx_t]), static_cast<integer_t>(fired_cap*node));
+				int idx_t = proc * (min_delay + 1) + curr_delay + 1;
+				merge2array(cross_neuron_id, cross_cnt, data, &(num[idx_t]), offset[proc]);
 				if (threadIdx.x == 0) {
 					cross_cnt = 0;
 				}

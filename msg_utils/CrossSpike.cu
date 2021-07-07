@@ -237,7 +237,7 @@ int CrossSpike::log_gpu(int time, const char *name)
 	integer_t *num = copyFromGPU(_gpu_array->_send_num, _proc_num);
 
 	{
-		FILE *sf = fopen_c((s+".gpu.send").c_str(), "a+");
+		FILE *sf = fopen_c((s+".gpu.send").c_str(), time == 0 ? "w+" : "a+");
 		fprintf(sf, "Time %d: \n", time);
 
 
@@ -283,7 +283,7 @@ int CrossSpike::log_gpu(int time, const char *name)
 		copyFromGPU(start, _gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
 
 		copyFromGPU(num, _gpu_array->_send_num, _proc_num);
-		FILE *rf = fopen_c((s+".gpu.recv").c_str(), "a+");
+		FILE *rf = fopen_c((s+".gpu.recv").c_str(), time == 0 ? "w+" : "a+");
 
 		fprintf(rf, "Time %d: \n", time);
 
