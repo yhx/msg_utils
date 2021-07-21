@@ -365,13 +365,13 @@ int CrossSpike::log_cpu(int time, const char *name)
 		fprintf(f, "Min delay: " FT_INTEGER_T "\n", _min_delay);
 
 		fprintf(f, "Recv offset: ");
-		for (size_t i=0; i<_proc_num+1; i++) {
+		for (int i=0; i<_proc_num+1; i++) {
 			fprintf(f, FT_INTEGER_T " ", _recv_offset[i]);
 		}
 		fprintf(f, "\n");
 
 		fprintf(f, "Send offset: ");
-		for (size_t i=0; i<_proc_num+1; i++) {
+		for (int i=0; i<_proc_num+1; i++) {
 			fprintf(f, FT_INTEGER_T " ", _send_offset[i]);
 		}
 		fprintf(f, "\n");
@@ -384,19 +384,19 @@ int CrossSpike::log_cpu(int time, const char *name)
 
 
 		fprintf(sf, "Send start: ");
-		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+		for (int i=0; i<_proc_num * (_min_delay+1); i++) {
 			fprintf(sf, FT_INTEGER_T " ", _send_start[i]);
 		}
 		fprintf(sf, "\n");
 
 		fprintf(sf, "Send num: ");
-		for (size_t i=0; i<_proc_num; i++) {
+		for (int i=0; i<_proc_num; i++) {
 			fprintf(sf, FT_INTEGER_T " ", _send_num[i]);
 		}
 		fprintf(sf, "\n");
 
 		fprintf(sf, "Send data: ");
-		for (size_t i=0; i<_send_offset[_proc_num]; i++) {
+		for (int i=0; i<_send_offset[_proc_num]; i++) {
 			fprintf(sf, FT_NID_T " ", _send_data[i]);
 		}
 		fprintf(sf, "\n");
@@ -425,19 +425,19 @@ int CrossSpike::log_cpu(int time, const char *name)
 		fprintf(rf, "Time %d: \n", time);
 
 		fprintf(rf, "Recv start: ");
-		for (size_t i=0; i<_proc_num * (_min_delay+1); i++) {
+		for (int i=0; i<_proc_num * (_min_delay+1); i++) {
 			fprintf(rf, FT_INTEGER_T " ", _recv_start[i]);
 		}
 		fprintf(rf, "\n");
 
 		fprintf(rf, "Recv num: ");
-		for (size_t i=0; i<_proc_num; i++) {
+		for (int i=0; i<_proc_num; i++) {
 			fprintf(rf, FT_INTEGER_T " ", _recv_num[i]);
 		}
 		fprintf(rf, "\n");
 
 		fprintf(rf, "Recv data: ");
-		for (size_t i=0; i<_recv_offset[_proc_num]; i++) {
+		for (int i=0; i<_recv_offset[_proc_num]; i++) {
 			fprintf(rf, FT_NID_T " ", _recv_data[i]);
 		}
 		fprintf(rf, "\n");
