@@ -41,14 +41,14 @@ const uinteger_t CAP = 8;
 
 int proc_rank = -1;
 
-integer_t table[(DELAY+1) * CAP] = {
+nid_t table[(DELAY+1) * CAP] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 	1, 2, 0, 0, 0, 0, 0, 0,
 	2, 3, 0, 0, 0, 0, 0, 0,
 	1, 2, 3, 4, 0, 0, 0, 0
 };
 
-integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
+nsize_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
 
 TEST_CASE("CHECK RESULTS", "") {

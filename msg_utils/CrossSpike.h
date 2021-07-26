@@ -36,8 +36,8 @@
 
 #ifndef NID_T
 #define NID_T
-typedef integer_t nid_t;
-typedef integer_t nsize_t;
+typedef uinteger_t nid_t;
+typedef uinteger_t nsize_t;
 
 #define MPI_NID_T MPI_INTEGER_T  
 #define MPI_NSIZE_T MPI_INTEGER_T  
@@ -66,14 +66,14 @@ public:
 	CrossSpike(FILE *f);
 	~CrossSpike();
 
-	int fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const nsize_t &table_cap, const int &proc_num, const int &max_delay, const int &time);
-    int upload_cpu(nid_t *tables, nsize_t *table_sizes, const nsize_t &table_cap, const int &max_delay, const int &time);
+	int fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time);
+    int upload_cpu(nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time);
 	int update_cpu(const int &time);
 	int log_cpu(int time, const char *name);
 
 // #ifdef USE_GPU
-	int fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const nsize_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block);
-	int upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const nsize_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
+	int fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block);
+	int upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
 	int update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStream_t &s);
 	int log_gpu(int time, const char *name);
 // #endif // USE_GPU
@@ -101,7 +101,6 @@ public:
 	// cap _proc_num + 1
 	integer_t *_send_offset;
 
-protected:
 	// info
 	int _proc_rank;
 	int _proc_num;
@@ -117,14 +116,17 @@ protected:
 	integer_t *_recv_start;
 	// cap _proc_num
 	integer_t *_recv_num;
-	// cap _recv_offset[_proc_num]
-	nid_t *_recv_data;
 
 	// integer_t send_size;
 	// cap _proc_num * (delay+1)
 	integer_t *_send_start;
 	// cap _proc_num * delay
 	integer_t *_send_num;
+
+protected:
+	// cap _recv_offset[_proc_num]
+	nid_t *_recv_data;
+
 	// cap _send_offset[_proc_num]
 	nid_t *_send_data;
 

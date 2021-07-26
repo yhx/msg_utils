@@ -463,7 +463,7 @@ int CrossSpike::log_cpu(int time, const char *name)
 	return 0;
 }
 
-int CrossSpike::fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const nsize_t &table_cap, const int &proc_num, const int &max_delay, const int &time)
+int CrossSpike::fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time)
 {
 	int delay_idx = time % (max_delay+1);
 	int curr_delay = time % _min_delay;
@@ -487,7 +487,7 @@ int CrossSpike::fetch_cpu(const CrossMap *map, const nid_t *tables, const nsize_
 	return 0;
 }
 
-int CrossSpike::upload_cpu(nid_t *tables, nsize_t *table_sizes, const nsize_t &table_cap, const int &max_delay, const int &time)
+int CrossSpike::upload_cpu(nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time)
 {
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay - 1) {

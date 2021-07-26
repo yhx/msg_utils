@@ -19,14 +19,14 @@ const uinteger_t CAP = 8;
 
 int proc_rank = -1;
 
-integer_t table[(DELAY+1) * CAP] = {
+nid_t table[(DELAY+1) * CAP] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 	1, 2, 0, 0, 0, 0, 0, 0,
 	2, 3, 0, 0, 0, 0, 0, 0,
 	1, 2, 3, 4, 0, 0, 0, 0
 };
 
-integer_t table_sizes[DELAY+1] = {1, 2, 3, 4};
+nsize_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
 
 TEST_CASE("CHECK RESULTS", "") {
@@ -174,15 +174,15 @@ int main(int argc, char **argv)
 	to_attach();
 
 	for (int t=0; t<DELAY; t++) {
-		cs.fetch_cpu(&map, (integer_t *)table, (integer_t *)table_sizes, CAP, proc_num, DELAY, t);
+		cs.fetch_cpu(&map, table, table_sizes, CAP, proc_num, DELAY, t);
 		cs.update_cpu(t);
 		cs.log_cpu(t, name_t); 
-		cs.upload_cpu((integer_t *)table, (integer_t *)table_sizes, CAP, DELAY, t);
+		cs.upload_cpu(table, table_sizes, CAP, DELAY, t);
 	}
 
 	for (int i=0; i<DELAY+1; i++) {
 		printf("Rank %d:%d :", proc_rank, table_sizes[i]);
-		for (int j=0; j<table_sizes[i]; j++) {
+		for (unsigned int j=0; j<table_sizes[i]; j++) {
 			printf("%d ", table[j + i * CAP]);
 		}
 		printf("\n");

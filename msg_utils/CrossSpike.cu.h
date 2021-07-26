@@ -4,8 +4,8 @@
 
 #include "helper/helper_gpu.h"
 
-template<typename TID, typename TSIZE>
-__global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const integer_t *idx2index, const integer_t *index2ridx, const TID *fired_table, const TSIZE *fired_sizes, const TSIZE fired_cap, const int proc_num, const int delay_idx, const int min_delay, const int curr_delay)
+template<typename TID, typename TSIZE, typename SIZE>
+__global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const integer_t *idx2index, const integer_t *index2ridx, const TID *fired_table, const TSIZE *fired_sizes, const SIZE fired_cap, const int proc_num, const int delay_idx, const int min_delay, const int curr_delay)
 {
 	__shared__ TID cross_neuron_id[MAX_BLOCK_SIZE];
 	__shared__ volatile int cross_cnt;
