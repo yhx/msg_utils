@@ -5,6 +5,43 @@
 #include "CrossSpike.cu.h"
 
 
+CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, const MPI_Comm &comm)
+{
+	assert(delay > 0);
+	assert(proc_num > 0);
+	assert(gpu_num > 0);
+
+	_proc_rank = proc_rank;
+	_proc_num = proc_num;
+
+	_gpu_group = proc_rank / gpu_num;
+
+	MPI_Comm_split(comm, _gpu_group, _proc_rank, &_grp_comm);
+
+
+	MPI_Comm_rank(_grp_comm, &_gpu_rank);
+	MPI_Comm_size(_grp_comm, &_gpu_num);
+
+	char processor_name[MPI_MAX_PROCESSOR_NAME];
+	int name_len;
+	MPI_Get_processor_name(processor_name, &name_len);
+	printf("Processor %s, rank %d out of %d processes, rank %d out of %d GPUs\n", processor_name, proc_rank, proc_num, _gpu_rank, gpu_num);
+
+	gpuDevice(_gpu_rank);
+
+	if (gpu_num > 1) {
+		ncclUniqueId id;
+		checkCudaErrors(cudaStreamCreate(&_stream));
+
+		if (0 == _gpu_rank) {
+			ncclGetUniqueId(&id);
+		}
+
+		MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, _grp_comm);
+		ncclCommInitRank(&_gpu_comm, _gpu_num, id, _gpu_rank);
+	}
+}
+
 CrossSpike::~CrossSpike()
 {
 	if (_proc_num > 0) {
@@ -83,14 +120,14 @@ int CrossSpike::to_gpu()
 }
 
 
-int CrossSpike::update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStream_t &s)
+int CrossSpike::update_gpu(const int &curr_delay)
 {
 	if (curr_delay >= _min_delay -1) {
 		if (_proc_num > _gpu_num) {
 			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
 			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
 		}
-		msg_gpu(comm_gpu, s);
+		msg_gpu();
 	} else {
 		cudaDeviceSynchronize();
 		update_kernel<<<1, _proc_num>>>(_gpu_array->_send_start, _proc_num, _min_delay, curr_delay);
@@ -99,10 +136,10 @@ int CrossSpike::update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStre
 	return 0;
 }
 
-int CrossSpike::msg_gpu(ncclComm_t &comm_gpu, cudaStream_t &s)
+int CrossSpike::msg_gpu()
 {
 	for (int i=0; i<_proc_num; i++) {
-		if (i/_gpu_num == _gpu_group) {
+		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
 			_send_num[i] = 0;
 		} else {
 			_send_num[i] = _send_start[i*(_min_delay+1)+_min_delay];
@@ -113,42 +150,47 @@ int CrossSpike::msg_gpu(ncclComm_t &comm_gpu, cudaStream_t &s)
 	// print_mpi_x32(_send_num, num_size, "Send Num");
 	// print_mpi_x32(_recv_num, num_size, "To Recv Num");
 
-	cudaDeviceSynchronize();
-	ncclGroupStart();
 	int size = _min_delay + 1;
 	int r_offset = _gpu_group * _gpu_num;
-	for (int r=0; r<_gpu_num; r++) {
-		if (r != _gpu_rank) {
-			ncclSend(_gpu_array->_send_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, comm_gpu, s);
-			ncclRecv(_gpu_array->_recv_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, comm_gpu, s);
+
+	if (_gpu_num > 1) {
+		cudaDeviceSynchronize();
+		ncclGroupStart();
+		for (int r=0; r<_gpu_num; r++) {
+			if (r != _gpu_rank) {
+				ncclSend(_gpu_array->_send_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, _gpu_comm, _stream);
+				ncclRecv(_gpu_array->_recv_start + ((r_offset + r)*size), size, NCCL_INTEGER_T, r, _gpu_comm, _stream);
+			}
 		}
+		ncclGroupEnd();
 	}
-	ncclGroupEnd();
 
 
 	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
 
-	cudaDeviceSynchronize();
+	if (_gpu_num > 1) {
+		cudaDeviceSynchronize();
 
-	ncclGroupStart();
-	for (int r=0; r<_gpu_num; r++) {
-		int idx = r_offset + r;
-		int num = _send_start[idx*(_min_delay+1)+_min_delay];
-		if (num > 0) {
-			ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_NID_T, r, comm_gpu, s);
+		ncclGroupStart();
+		for (int r=0; r<_gpu_num; r++) {
+			int idx = r_offset + r;
+			int num = _send_start[idx*(_min_delay+1)+_min_delay];
+			if (num > 0) {
+				ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
+			}
+			num = _recv_start[idx*(_min_delay+1)+_min_delay];
+			if (num > 0) {
+				ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
+			}
 		}
-		num = _recv_start[idx*(_min_delay+1)+_min_delay];
-		if (num > 0) {
-			ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_NID_T, r, comm_gpu, s);
-		}
+		ncclGroupEnd();
 	}
-	ncclGroupEnd();
 
 
 	// print_mpi_x32(_recv_num, num_size, "Recv Num");
 
 	for (int i=0; i<_proc_num; i++) {
-		if (i/_gpu_num == _gpu_group) {
+		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
 			_recv_num[i] = 0;
 		} else {
 			_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];

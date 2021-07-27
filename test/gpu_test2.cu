@@ -34,7 +34,7 @@ using std::vector;
   }                                                 \
 } while(0)
 
-// const int GPU_SIZE = 2;
+const int GPU_SIZE = 2;
 const int DELAY = 3;
 const int N = 4;
 const uinteger_t CAP = 8;
@@ -202,7 +202,7 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	CrossSpike cs(proc_rank, proc_num, DELAY, 1);
+	CrossSpike cs(proc_rank, proc_num, DELAY, GPU_SIZE);
 	cs._recv_offset[0] = 0;
 	cs._send_offset[0] = 0;
 

@@ -35,19 +35,16 @@ CrossSpike::CrossSpike()
 	_gpu_array = NULL;
 }
 
-CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_rank, int gpu_num, int gpu_group)
+CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay)
 {
 	assert(delay > 0);
 	assert(proc_num > 0);
-	assert(gpu_num > 0);
 	// printf("Delay: %d\n", delay);
 	// printf("Node: %d\n", proc_num);
 	_proc_rank = proc_rank;
 	_proc_num = proc_num;
 
-	_gpu_rank = gpu_rank;
-	_gpu_num = gpu_num;
-	_gpu_group = gpu_group > 0 ? gpu_group : proc_rank/gpu_num;
+	_gpu_num = 0;
 
 	_min_delay = delay;
 

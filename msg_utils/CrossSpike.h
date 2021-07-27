@@ -62,7 +62,8 @@ using std::string;
 class CrossSpike {
 public:
 	CrossSpike();
-	CrossSpike(int proc_rank, int proc_num, int delay, int gpu_rank=0, int gpu_num=1, int gpu_group=0);
+	CrossSpike(int proc_rank, int proc_num, int delay);
+	CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, const MPI_Comm &comm=MPI_COMM_WORLD);
 	CrossSpike(FILE *f);
 	~CrossSpike();
 
@@ -74,7 +75,7 @@ public:
 // #ifdef USE_GPU
 	int fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block);
 	int upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
-	int update_gpu(const int &curr_delay, ncclComm_t &comm_gpu, cudaStream_t &s);
+	int update_gpu(const int &curr_delay);
 	int log_gpu(int time, const char *name);
 // #endif // USE_GPU
 
@@ -90,7 +91,7 @@ public:
 
 protected:
 	int msg_cpu();
-	int msg_gpu(ncclComm_t &comm_gpu, cudaStream_t &s);
+	int msg_gpu();
 	// int msg_mpi();
 	void reset();
 
@@ -105,9 +106,11 @@ public:
 	int _proc_rank;
 	int _proc_num;
 
+// #ifdef USE_GPU
 	int _gpu_rank;
 	int _gpu_num;
 	int _gpu_group;
+// #endif
 
 	integer_t _min_delay;
 
@@ -131,6 +134,12 @@ protected:
 	nid_t *_send_data;
 
 	MPI_Request _request;
+
+// #ifdef USE_GPU
+	MPI_Comm _grp_comm;
+	ncclComm_t _gpu_comm;
+	cudaStream_t _stream;
+// #endif
 
 	CrossSpike *_gpu_array;
 };
