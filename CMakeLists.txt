@@ -42,7 +42,8 @@ include_directories(${MPI_INCLUDE_PATH} ./include)
 
 add_library(msg_utils STATIC ${CPU_SRC})
 set_target_properties(msg_utils PROPERTIES LINKER_LANGUAGE CXX)
-cuda_add_library(msg_utils_cu STATIC ${GPU_SRC})
+cuda_add_library(msg_utils_cu STATIC ${GPU_SRC} ${CPU_SRC})
+set_target_properties(msg_utils_cu PROPERTIES LINKER_LANGUAGE CXX)
 
 FOREACH(exec_path ${GPU_TEST})
 	#MESSAGE("EXEC_PATH: ${exec_path}")

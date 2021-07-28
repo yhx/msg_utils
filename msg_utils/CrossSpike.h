@@ -126,13 +126,13 @@ public:
 	// cap _proc_num * delay
 	integer_t *_send_num;
 
-protected:
 	// cap _recv_offset[_proc_num]
 	nid_t *_recv_data;
 
 	// cap _send_offset[_proc_num]
 	nid_t *_send_data;
 
+protected:
 	MPI_Request _request;
 
 // #ifdef USE_GPU
