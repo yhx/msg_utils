@@ -8,6 +8,8 @@
 
 #include "mpi.h"
 
+#include "helper/helper_c.h"
+
 int to_attach();
 
 FILE * log_file_mpi(const char *name, int nidx);
@@ -20,14 +22,14 @@ int print_mpi_x32(T *array, int size, const char *name)
 
 	int length = strlen(name)+35+33*size;
 
-	char *log = (char*)malloc(sizeof(char)*length);
-	memset(log, 0, sizeof(char)*length);
+	char *log = malloc_c<char>(length);
+	// memset(log, 0, sizeof(char)*length);
 	int offset = sprintf(log, "%s %d:", name, id);
 	for (int i=0; i<size; i++) {
 		offset += sprintf(log+offset, "%d ", array[i]);
 	}
 	printf("%s\n", log);
-	free(log);
+	log = free_c(log);
 	return offset;
 }
 

@@ -44,7 +44,9 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay)
 	_proc_rank = proc_rank;
 	_proc_num = proc_num;
 
+	_gpu_rank = 0;
 	_gpu_num = 0;
+	_gpu_group = 0;
 
 	_min_delay = delay;
 

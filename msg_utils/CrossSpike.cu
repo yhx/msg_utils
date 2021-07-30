@@ -5,15 +5,9 @@
 #include "CrossSpike.cu.h"
 
 
-CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, const MPI_Comm &comm)
+CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, const MPI_Comm &comm) : CrossSpike(proc_rank, proc_num, delay)
 {
-	assert(delay > 0);
-	assert(proc_num > 0);
 	assert(gpu_num > 0);
-
-	_proc_rank = proc_rank;
-	_proc_num = proc_num;
-
 	_gpu_group = proc_rank / gpu_num;
 
 	MPI_Comm_split(comm, _gpu_group, _proc_rank, &_grp_comm);
@@ -45,27 +39,27 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, cons
 CrossSpike::~CrossSpike()
 {
 	if (_proc_num > 0) {
-		free_c(_recv_offset);
-		free_c(_recv_start);
-		free_c(_recv_num);
-		free_c(_recv_data);
+		free_clear(_recv_offset);
+		free_clear(_recv_start);
+		free_clear(_recv_num);
+		free_clear(_recv_data);
 
-		free_c(_send_offset);
-		free_c(_send_start);
-		free_c(_send_num);
-		free_c(_send_data);
+		free_clear(_send_offset);
+		free_clear(_send_start);
+		free_clear(_send_num);
+		free_clear(_send_data);
 	}
 
 	if (_gpu_array) {
-		gpuFree(_gpu_array->_recv_offset);
-		gpuFree(_gpu_array->_recv_start);
-		gpuFree(_gpu_array->_recv_num);
-		gpuFree(_gpu_array->_recv_data);
+		gpuFreeClear(_gpu_array->_recv_offset);
+		gpuFreeClear(_gpu_array->_recv_start);
+		gpuFreeClear(_gpu_array->_recv_num);
+		gpuFreeClear(_gpu_array->_recv_data);
 
-		gpuFree(_gpu_array->_send_offset);
-		gpuFree(_gpu_array->_send_start);
-		gpuFree(_gpu_array->_send_num);
-		gpuFree(_gpu_array->_send_data);
+		gpuFreeClear(_gpu_array->_send_offset);
+		gpuFreeClear(_gpu_array->_send_start);
+		gpuFreeClear(_gpu_array->_send_num);
+		gpuFreeClear(_gpu_array->_send_data);
 
 		_gpu_array->_proc_num = 0;
 		_gpu_array->_min_delay = 0;

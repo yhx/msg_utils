@@ -62,7 +62,7 @@ int CrossMap::recv(int src, int tag, MPI_Comm comm)
 	ret = MPI_Recv(&_cross_size, 1, MPI_SIZE_T, src, tag, comm, &status);
 	assert(ret==MPI_SUCCESS);
 	if (_idx2index) {
-		free(_idx2index);
+		free_clear(_idx2index);
 	}
 	_idx2index = malloc_c<integer_t>(_num);
 	ret = MPI_Recv(_idx2index, _num, MPI_INTEGER_T, src, tag+1, comm, &status);

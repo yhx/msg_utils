@@ -139,6 +139,8 @@ int main(int argc, char **argv)
 
 	// NCCLCHECK(ncclCommInitRank(&comm_gpu, gpu_num, id, gpu_rank));
 
+	to_attach();
+
 	CrossMap cm(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {
@@ -222,8 +224,6 @@ int main(int argc, char **argv)
 	cm.to_gpu();
 
 	cs.to_gpu();
-
-	to_attach();
 
 	nid_t *table_gpu = copyToGPU(table,  (DELAY+1) * CAP);
 	nid_t *table_sizes_gpu = copyToGPU(table_sizes, DELAY+1);

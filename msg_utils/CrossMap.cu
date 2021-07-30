@@ -5,21 +5,21 @@
 
 CrossMap::~CrossMap()
 {
-	if (_idx2index) {
-		free_c(_idx2index);
+	if (_num > 0) {
+		free_clear(_idx2index);
 	}
 
-	if (_index2ridx) {
-		free_c(_index2ridx);
+	if (_cross_size > 0) {
+		free_clear(_index2ridx);
 	}
 
 	if (_gpu_array) {
 		if (_gpu_array->_idx2index) {
-			gpuFree(_gpu_array->_idx2index);
+			gpuFreeClear(_gpu_array->_idx2index);
 		}
 
 		if (_gpu_array->_index2ridx) {
-			gpuFree(_gpu_array->_index2ridx);
+			gpuFreeClear(_gpu_array->_index2ridx);
 		}
 
 		_gpu_array->_num = 0;
