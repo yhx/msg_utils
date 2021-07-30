@@ -1,3 +1,0 @@
-[submodule "utils"]
-	path = msg_utils/helper
-	url = ../helper.git
