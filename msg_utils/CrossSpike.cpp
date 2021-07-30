@@ -4,8 +4,8 @@
 #include <string.h>
 #include <string>
 
-#include "helper/helper_c.h"
-#include "helper/helper_array_c.h"
+#include "../helper/helper_c.h"
+#include "../helper/helper_array_c.h"
 #include "msg_utils.h"
 #include "CrossSpike.h"
 

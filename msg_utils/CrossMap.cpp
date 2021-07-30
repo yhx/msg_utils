@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "helper/helper_c.h"
-#include "helper/helper_array_c.h"
+#include "../helper/helper_c.h"
+#include "../helper/helper_array_c.h"
 #include "CrossMap.h"
 
 CrossMap::CrossMap()

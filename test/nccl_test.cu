@@ -4,7 +4,7 @@
 #include "nccl.h"
 #include "mpi.h"
 
-#include "../msg_utils/helper/helper_gpu.h"
+#include "../helper/helper_gpu.h"
 
 #define MPICHECK(cmd) do {                          \
   int e = cmd;                                      \

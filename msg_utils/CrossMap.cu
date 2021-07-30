@@ -1,6 +1,6 @@
 
-#include "helper/helper_c.h"
-#include "helper/helper_gpu.h"
+#include "../helper/helper_c.h"
+#include "../helper/helper_gpu.h"
 #include "CrossMap.h"
 
 CrossMap::~CrossMap()

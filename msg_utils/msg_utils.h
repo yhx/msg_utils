@@ -8,7 +8,7 @@
 
 #include "mpi.h"
 
-#include "helper/helper_c.h"
+#include "../helper/helper_c.h"
 
 int to_attach();
 

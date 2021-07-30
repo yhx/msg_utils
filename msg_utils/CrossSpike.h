@@ -8,7 +8,7 @@
 #include "mpi.h"
 #include "nccl.h"
 
-#include "helper/helper_type.h"
+#include "../helper/helper_type.h"
 
 #include "CrossMap.h"
 

@@ -4,7 +4,7 @@
 
 #include "mpi.h"
 
-#include "helper/helper_type.h"
+#include "../helper/helper_type.h"
 
 class CrossMap {
 public:
