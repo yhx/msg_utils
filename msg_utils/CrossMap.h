@@ -33,9 +33,6 @@ public:
 
 	CrossMap * _gpu_array;
 
-protected:
-
-
 	// _num number of neurons on this node
 	// _cross_size = node_num * number_of_the_neurons_on_this_node_which_have_crossnode_connections
 	size_t _cross_size;
