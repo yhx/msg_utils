@@ -77,6 +77,7 @@ public:
 	int upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
 	int update_gpu(const int &curr_delay);
 	int log_gpu(int time, const char *name);
+
 // #endif // USE_GPU
 
 	int send(int dst, int tag, MPI_Comm comm);
@@ -87,6 +88,7 @@ public:
 	bool equal(const CrossSpike &m);
 
 	int to_gpu();
+	int from_gpu();
 	void alloc();
 
 protected:

@@ -113,6 +113,28 @@ int CrossSpike::to_gpu()
 	return 0;
 }
 
+int CrossSpike::from_gpu()
+{
+	assert(_gpu_array);
+	assert(_gpu_array->_proc_num == _proc_num);
+	assert(_gpu_array->_min_delay == _min_delay);
+
+	size_t size = _min_delay * _proc_num;
+	size_t num_p_1 = _proc_num + 1;
+
+	copyFromGPU(_recv_offset, _gpu_array->_recv_offset, num_p_1);
+	copyFromGPU(_recv_start, _gpu_array->_recv_start, size+_proc_num);
+	copyFromGPU(_recv_num, _gpu_array->_recv_num, _proc_num);
+
+	copyFromGPU(_send_offset, _gpu_array->_send_offset, num_p_1);
+	copyFromGPU(_send_start, _gpu_array->_send_start, size+_proc_num);
+	copyFromGPU(_send_num, _gpu_array->_send_num, _proc_num);
+
+	copyFromGPU(_recv_data, _gpu_array->_recv_data, _recv_offset[_proc_num]);
+	copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
+
+	return 0;
+}
 
 int CrossSpike::update_gpu(const int &curr_delay)
 {
