@@ -1,6 +1,7 @@
 
 #include "../helper/helper_c.h"
 #include "../helper/helper_gpu.h"
+#include "GPUManager.h"
 #include "CrossSpike.h"
 #include "CrossSpike.cu.h"
 
@@ -21,7 +22,8 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, cons
 	MPI_Get_processor_name(processor_name, &name_len);
 	printf("Processor %s, rank %d out of %d processes, rank %d out of %d GPUs\n", processor_name, proc_rank, proc_num, _gpu_rank, gpu_num);
 
-	gpuDevice(_gpu_rank);
+	gm.set(_gpu_rank);
+	gm.lock();
 
 	if (gpu_num > 1) {
 		ncclUniqueId id;

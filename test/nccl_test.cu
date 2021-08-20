@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 
 	printf("Rank %d out of %d, gpu %d out of %d\n", rank, size, rank_gpu, size_gpu);
 
-	gpuDevice(rank_gpu);
+	gpuSetDevice(rank_gpu);
 
 	ncclUniqueId id;
 	ncclComm_t comm_gpu;
