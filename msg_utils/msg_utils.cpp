@@ -6,6 +6,7 @@
 
 int to_attach() 
 {
+#ifdef DEBUG
 	if (getenv("MPI_DEBUG") != NULL) {
 		int id = -1;
 		MPI_Comm_rank(MPI_COMM_WORLD, &id);
@@ -16,6 +17,7 @@ int to_attach()
 		}
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
+#endif
 	return 0;
 }
 

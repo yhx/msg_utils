@@ -41,8 +41,8 @@ int CrossMap::to_gpu()
 		_gpu_array->_num = _num;
 		_gpu_array->_cross_size = _cross_size;
 
-		_gpu_array->_idx2index = copyToGPU(_idx2index, _num);
-		_gpu_array->_index2ridx = copyToGPU(_index2ridx, _cross_size);
+		_gpu_array->_idx2index = TOGPU(_idx2index, _num);
+		_gpu_array->_index2ridx = TOGPU(_index2ridx, _cross_size);
 	} else {
 		assert(_gpu_array->_num == _num);
 		assert(_gpu_array->_cross_size == _cross_size);

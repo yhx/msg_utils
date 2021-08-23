@@ -90,9 +90,9 @@ int CrossSpike::to_gpu()
 		_gpu_array->_send_start = copyToGPU(_send_start, size+_proc_num);
 		_gpu_array->_send_num = copyToGPU(_send_num, _proc_num);
 
-		_gpu_array->_recv_data = copyToGPU(_recv_data, _recv_offset[_proc_num]);
+		_gpu_array->_recv_data = TOGPU(_recv_data, _recv_offset[_proc_num]);
 
-		_gpu_array->_send_data = copyToGPU(_send_data, _send_offset[_proc_num]);
+		_gpu_array->_send_data = TOGPU(_send_data, _send_offset[_proc_num]);
 	} else {
 		assert(_gpu_array->_proc_num == _proc_num);
 		assert(_gpu_array->_min_delay == _min_delay);
