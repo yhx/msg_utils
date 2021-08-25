@@ -313,7 +313,10 @@ int CrossSpike::log_gpu(int time, const char *name)
 		}
 		fprintf(sf, "\n");
 
-		nid_t * data = copyFromGPU(_gpu_array->_send_data, _send_offset[_proc_num]);
+		nid_t * data = NULL;
+		if (_send_offset[_proc_num] > 0) {
+			data = copyFromGPU(_gpu_array->_send_data, _send_offset[_proc_num]);
+		}
 		fprintf(sf, "Send data: ");
 		for (size_t i=0; i<_send_offset[_proc_num]; i++) {
 			fprintf(sf, FT_NID_T " ", data[i]);
@@ -322,12 +325,13 @@ int CrossSpike::log_gpu(int time, const char *name)
 
 		for (int d=0; d<_min_delay; d++) {
 			fprintf(sf, "Delay %d: \n", d);
-			for (int n=0; n<_proc_num; n++) {
-				fprintf(sf, "Proc %d: ", n);
-				int st = start[n*(_min_delay+1)+d];
-				int end = start[n*(_min_delay+1)+d+1];
+			for (int g=0; g<_gpu_num; g++) {
+				fprintf(sf, "GPU %d: ", g);
+				int idx = _gpu_group * _gpu_num + g;
+				int st = start[idx*(_min_delay+1)+d];
+				int end = start[idx*(_min_delay+1)+d+1];
 				for (int k=st; k<end; k++) {
-					fprintf(sf, FT_NID_T " ", data[_send_offset[n] + k]);
+					fprintf(sf, FT_NID_T " ", data[_send_offset[idx] + k]);
 				}
 				fprintf(sf, "\n");
 			}
@@ -359,7 +363,10 @@ int CrossSpike::log_gpu(int time, const char *name)
 		}
 		fprintf(rf, "\n");
 
-		nid_t *data = copyFromGPU(_gpu_array->_recv_data, _recv_offset[_proc_num]);
+		nid_t *data = NULL;
+		if (_recv_offset[_proc_num] > 0) {
+			data = copyFromGPU(_gpu_array->_recv_data, _recv_offset[_proc_num]);
+		}
 		fprintf(rf, "Recv data: ");
 		for (size_t i=0; i<_recv_offset[_proc_num]; i++) {
 			fprintf(rf, FT_NID_T " ", data[i]);
@@ -368,12 +375,13 @@ int CrossSpike::log_gpu(int time, const char *name)
 
 		for (int d=0; d<_min_delay; d++) {
 			fprintf(rf, "Delay %d: \n", d);
-			for (int n=0; n<_proc_num; n++) {
-				fprintf(rf, "Proc %d: ", n);
-				int st = start[n*(_min_delay+1)+d];
-				int end = start[n*(_min_delay+1)+d+1];
+			for (int g=0; g<_gpu_num; g++) {
+				fprintf(rf, "GPU %d: ", g);
+				int idx = _gpu_group * _gpu_num + g;
+				int st = start[idx*(_min_delay+1)+d];
+				int end = start[idx*(_min_delay+1)+d+1];
 				for (int k=st; k<end; k++) {
-					fprintf(rf, FT_NID_T " ", data[_recv_offset[n] + k]);
+					fprintf(rf, FT_NID_T " ", data[_recv_offset[idx] + k]);
 				}
 				// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
 				fprintf(rf, "\n");
