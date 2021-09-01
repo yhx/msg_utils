@@ -81,8 +81,8 @@ int main(int argc, char **argv)
 		sb[1] = rank + 0.1;
 		rb[0] = 0.0;
 
-		sb_gpu = copyToGPU(sb, 2);
-		rb_gpu = copyToGPU(rb, 1);
+		sb_gpu = TOGPU(sb, 2);
+		rb_gpu = TOGPU(rb, 1);
 
 	} else {
 		sc[0] = 1;
@@ -95,8 +95,8 @@ int main(int argc, char **argv)
 		rb[0] = 0.0;
 		rb[1] = 0.0;
 
-		sb_gpu = copyToGPU(sb, 1);
-		rb_gpu = copyToGPU(rb, 2);
+		sb_gpu = TOGPU(sb, 1);
+		rb_gpu = TOGPU(rb, 2);
 	}
 
 	ncclGroupStart();
@@ -113,9 +113,9 @@ int main(int argc, char **argv)
 	checkCudaErrors(cudaStreamSynchronize(s));
 
 	if (0 == rank_gpu) {
-		copyFromGPU(rb, rb_gpu, 1);
+		COPYFROMGPU(rb, rb_gpu, 1);
 	} else {
-		copyFromGPU(rb, rb_gpu, 2);
+		COPYFROMGPU(rb, rb_gpu, 2);
 	}
 
 	if (0 == rank_gpu) {
