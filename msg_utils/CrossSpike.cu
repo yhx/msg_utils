@@ -188,6 +188,22 @@ int CrossSpike::msg_gpu()
 
 	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
 
+	for (int i=0; i<_proc_num; i++) {
+		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
+			_recv_num[i] = 0;
+		} else {
+			_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];
+		}
+	}
+
+#ifdef ASYNC
+	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
+	assert(ret == MPI_SUCCESS);
+#else
+	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+	assert(ret == MPI_SUCCESS);
+#endif
+
 	if (_gpu_num > 1) {
 		cudaDeviceSynchronize();
 
@@ -209,21 +225,6 @@ int CrossSpike::msg_gpu()
 
 	// print_mpi_x32(_recv_num, num_size, "Recv Num");
 
-	for (int i=0; i<_proc_num; i++) {
-		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
-			_recv_num[i] = 0;
-		} else {
-			_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];
-		}
-	}
-
-#ifdef ASYNC
-	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
-	assert(ret == MPI_SUCCESS);
-#else
-	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
-	assert(ret == MPI_SUCCESS);
-#endif
 
 	return 0;
 }
