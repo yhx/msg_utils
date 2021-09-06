@@ -158,6 +158,10 @@ int CrossSpike::update_gpu(const int &curr_delay)
 
 int CrossSpike::msg_gpu()
 {
+#ifdef PROF
+	double ts = 0, te = 0;
+#endif
+
 	for (int i=0; i<_proc_num; i++) {
 		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
 			_send_num[i] = 0;
@@ -186,6 +190,9 @@ int CrossSpike::msg_gpu()
 	}
 
 
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
 	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
 
 	for (int i=0; i<_proc_num; i++) {
@@ -203,10 +210,17 @@ int CrossSpike::msg_gpu()
 	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
 #endif
+#ifdef PROF
+		te = MPI_Wtime();
+		_cpu_time += te - ts;
+#endif
 
 	if (_gpu_num > 1) {
 		cudaDeviceSynchronize();
 
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
 		ncclGroupStart();
 		for (int r=0; r<_gpu_num; r++) {
 			int idx = r_offset + r;
@@ -220,6 +234,10 @@ int CrossSpike::msg_gpu()
 			}
 		}
 		ncclGroupEnd();
+#ifdef PROF
+		te = MPI_Wtime();
+		_gpu_time += te - ts;
+#endif
 	}
 
 
@@ -240,9 +258,19 @@ int CrossSpike::fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_
 
 int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block)
 {
+#ifdef PROF
+	double ts = 0, te = 0;
+#endif
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay -1) {
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
 		COPYFROMGPU(c_table_sizes, table_sizes, max_delay+1);
+#ifdef PROF
+		te = MPI_Wtime();
+		_gpu_wait += te - ts;
+#endif
 
 		for (int d=0; d<_min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
@@ -258,9 +286,16 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 		}
 
 #ifdef ASYNC
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif 
 		MPI_Status status_t;
 		int ret = MPI_Wait(&_request, &status_t);
 		assert(ret == MPI_SUCCESS);
+#ifdef PROF
+		te = MPI_Wtime();
+		_cpu_wait_gpu += te - ts;
+#endif
 #endif
 
 		for (int d=0; d < _min_delay; d++) {
