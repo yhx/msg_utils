@@ -33,6 +33,13 @@ CrossSpike::CrossSpike()
 	_send_data = NULL;
 
 	_gpu_array = NULL;
+
+#ifdef PROF
+	_cpu_wait_gpu = 0;
+	_gpu_wait = 0;
+	_gpu_time = 0;
+	_cpu_time = 0;
+#endif
 }
 
 CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay)
@@ -66,6 +73,13 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay)
 	_gpu_array = NULL;
 
 	reset();
+
+#ifdef PROF
+	_cpu_wait_gpu = 0;
+	_gpu_wait = 0;
+	_gpu_time = 0;
+	_cpu_time = 0;
+#endif
 }
 
 void CrossSpike::reset()

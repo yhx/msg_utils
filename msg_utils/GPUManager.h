@@ -20,10 +20,10 @@ public:
 	void check();
 
 private:
-	static int _id;
-	static atomic<char> _lock;
+	static thread_local int _id;
+	static thread_local atomic<char> _lock;
 };
 
-extern GPUManager gm;
+extern thread_local GPUManager gm;
 
 #endif //GPUMANAGER_H

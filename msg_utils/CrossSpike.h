@@ -144,6 +144,14 @@ protected:
 // #endif
 
 	CrossSpike *_gpu_array;
+
+#ifdef PROF
+public:
+	double _cpu_wait_gpu;
+	double _gpu_wait;
+	double _gpu_time;
+	double _cpu_time;
+#endif
 };
 
 

@@ -5,10 +5,10 @@
 #include "GPUManager.h"
 #include "../helper/helper_gpu.h"
 
-GPUManager gm;
+thread_local GPUManager gm;
 
-int GPUManager::_id = 0;
-atomic<char> GPUManager::_lock(0);
+thread_local int GPUManager::_id = 0;
+thread_local atomic<char> GPUManager::_lock(0);
 
 
 GPUManager::GPUManager()
@@ -21,7 +21,7 @@ GPUManager::~GPUManager()
 
 int GPUManager::set(int id)
 {
-	assert(id > 0);
+	assert(id >= 0);
 	bool locked = _lock.load() > 0;
 	if (locked && id != _id) {
 		printf("Warn: try to change a locked gpu device!\n");
@@ -38,8 +38,9 @@ int GPUManager::get()
 {
 	int id = gpuGetDevice();
 	if (_id !=  id) {
-		printf("Warn: gpu device variance, usually due to calling setDevice driectly!\n");
+		printf("Error: gpu device variance, usually due to calling setDevice driectly!\n");
 		_id = id;
+		return -1;
 	}
 	return id;
 }

@@ -84,32 +84,32 @@ int CrossSpike::to_gpu()
 		_gpu_array->_proc_num = _proc_num;
 		_gpu_array->_min_delay = _min_delay;
 
-		_gpu_array->_recv_offset = copyToGPU(_recv_offset, num_p_1);
-		_gpu_array->_recv_start = copyToGPU(_recv_start, size+_proc_num);
-		_gpu_array->_recv_num = copyToGPU(_recv_num, _proc_num);
+		_gpu_array->_recv_offset = TOGPU(_recv_offset, num_p_1);
+		_gpu_array->_recv_start = TOGPU(_recv_start, size+_proc_num);
+		_gpu_array->_recv_num = TOGPU(_recv_num, _proc_num);
 
-		_gpu_array->_send_offset = copyToGPU(_send_offset, num_p_1);
-		_gpu_array->_send_start = copyToGPU(_send_start, size+_proc_num);
-		_gpu_array->_send_num = copyToGPU(_send_num, _proc_num);
+		_gpu_array->_send_offset = TOGPU(_send_offset, num_p_1);
+		_gpu_array->_send_start = TOGPU(_send_start, size+_proc_num);
+		_gpu_array->_send_num = TOGPU(_send_num, _proc_num);
 
-		_gpu_array->_recv_data = copyToGPU(_recv_data, _recv_offset[_proc_num]);
+		_gpu_array->_recv_data = TOGPU(_recv_data, _recv_offset[_proc_num]);
 
-		_gpu_array->_send_data = copyToGPU(_send_data, _send_offset[_proc_num]);
+		_gpu_array->_send_data = TOGPU(_send_data, _send_offset[_proc_num]);
 	} else {
 		assert(_gpu_array->_proc_num == _proc_num);
 		assert(_gpu_array->_min_delay == _min_delay);
 
-		copyToGPU(_gpu_array->_recv_offset, _recv_offset, num_p_1);
-		copyToGPU(_gpu_array->_recv_start, _recv_start, size+_proc_num);
-		copyToGPU(_gpu_array->_recv_num, _recv_num, _proc_num);
+		COPYTOGPU(_gpu_array->_recv_offset, _recv_offset, num_p_1);
+		COPYTOGPU(_gpu_array->_recv_start, _recv_start, size+_proc_num);
+		COPYTOGPU(_gpu_array->_recv_num, _recv_num, _proc_num);
 
-		copyToGPU(_gpu_array->_send_offset, _send_offset, num_p_1);
-		copyToGPU(_gpu_array->_send_start, _send_start, size+_proc_num);
-		copyToGPU(_gpu_array->_send_num, _send_num, _proc_num);
+		COPYTOGPU(_gpu_array->_send_offset, _send_offset, num_p_1);
+		COPYTOGPU(_gpu_array->_send_start, _send_start, size+_proc_num);
+		COPYTOGPU(_gpu_array->_send_num, _send_num, _proc_num);
 
-		copyToGPU(_gpu_array->_recv_data, _recv_data, _recv_offset[_proc_num]);
+		COPYTOGPU(_gpu_array->_recv_data, _recv_data, _recv_offset[_proc_num]);
 
-		copyToGPU(_gpu_array->_send_data, _send_data, _send_offset[_proc_num]);
+		COPYTOGPU(_gpu_array->_send_data, _send_data, _send_offset[_proc_num]);
 	}
 
 	return 0;
@@ -124,16 +124,16 @@ int CrossSpike::from_gpu()
 	size_t size = _min_delay * _proc_num;
 	size_t num_p_1 = _proc_num + 1;
 
-	copyFromGPU(_recv_offset, _gpu_array->_recv_offset, num_p_1);
-	copyFromGPU(_recv_start, _gpu_array->_recv_start, size+_proc_num);
-	copyFromGPU(_recv_num, _gpu_array->_recv_num, _proc_num);
+	COPYFROMGPU(_recv_offset, _gpu_array->_recv_offset, num_p_1);
+	COPYFROMGPU(_recv_start, _gpu_array->_recv_start, size+_proc_num);
+	COPYFROMGPU(_recv_num, _gpu_array->_recv_num, _proc_num);
 
-	copyFromGPU(_send_offset, _gpu_array->_send_offset, num_p_1);
-	copyFromGPU(_send_start, _gpu_array->_send_start, size+_proc_num);
-	copyFromGPU(_send_num, _gpu_array->_send_num, _proc_num);
+	COPYFROMGPU(_send_offset, _gpu_array->_send_offset, num_p_1);
+	COPYFROMGPU(_send_start, _gpu_array->_send_start, size+_proc_num);
+	COPYFROMGPU(_send_num, _gpu_array->_send_num, _proc_num);
 
-	copyFromGPU(_recv_data, _gpu_array->_recv_data, _recv_offset[_proc_num]);
-	copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
+	COPYFROMGPU(_recv_data, _gpu_array->_recv_data, _recv_offset[_proc_num]);
+	COPYFROMGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
 
 	return 0;
 }
@@ -142,8 +142,10 @@ int CrossSpike::update_gpu(const int &curr_delay)
 {
 	if (curr_delay >= _min_delay -1) {
 		if (_proc_num > _gpu_num) {
-			copyFromGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
-			copyFromGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
+			COPYFROMGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
+			if (_send_offset[_proc_num] > 0) {
+				COPYFROMGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
+			}
 		}
 		msg_gpu();
 	} else {
@@ -156,6 +158,10 @@ int CrossSpike::update_gpu(const int &curr_delay)
 
 int CrossSpike::msg_gpu()
 {
+#ifdef PROF
+	double ts = 0, te = 0;
+#endif
+
 	for (int i=0; i<_proc_num; i++) {
 		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
 			_send_num[i] = 0;
@@ -184,28 +190,10 @@ int CrossSpike::msg_gpu()
 	}
 
 
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
 	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
-
-	if (_gpu_num > 1) {
-		cudaDeviceSynchronize();
-
-		ncclGroupStart();
-		for (int r=0; r<_gpu_num; r++) {
-			int idx = r_offset + r;
-			int num = _send_start[idx*(_min_delay+1)+_min_delay];
-			if (num > 0) {
-				ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
-			}
-			num = _recv_start[idx*(_min_delay+1)+_min_delay];
-			if (num > 0) {
-				ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
-			}
-		}
-		ncclGroupEnd();
-	}
-
-
-	// print_mpi_x32(_recv_num, num_size, "Recv Num");
 
 	for (int i=0; i<_proc_num; i++) {
 		if (_gpu_num > 1 && i/_gpu_num == _gpu_group) {
@@ -222,6 +210,39 @@ int CrossSpike::msg_gpu()
 	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
 #endif
+#ifdef PROF
+		te = MPI_Wtime();
+		_cpu_time += te - ts;
+#endif
+
+	if (_gpu_num > 1) {
+		cudaDeviceSynchronize();
+
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
+		ncclGroupStart();
+		for (int r=0; r<_gpu_num; r++) {
+			int idx = r_offset + r;
+			int num = _send_start[idx*(_min_delay+1)+_min_delay];
+			if (num > 0) {
+				ncclSend(_gpu_array->_send_data + _send_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
+			}
+			num = _recv_start[idx*(_min_delay+1)+_min_delay];
+			if (num > 0) {
+				ncclRecv(_gpu_array->_recv_data + _recv_offset[idx], num, NCCL_NID_T, r, _gpu_comm, _stream);
+			}
+		}
+		ncclGroupEnd();
+#ifdef PROF
+		te = MPI_Wtime();
+		_gpu_time += te - ts;
+#endif
+	}
+
+
+	// print_mpi_x32(_recv_num, num_size, "Recv Num");
+
 
 	return 0;
 }
@@ -237,9 +258,19 @@ int CrossSpike::fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_
 
 int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block)
 {
+#ifdef PROF
+	double ts = 0, te = 0;
+#endif
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay -1) {
-		copyFromGPU(c_table_sizes, table_sizes, max_delay+1);
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif
+		COPYFROMGPU(c_table_sizes, table_sizes, max_delay+1);
+#ifdef PROF
+		te = MPI_Wtime();
+		_gpu_wait += te - ts;
+#endif
 
 		for (int d=0; d<_min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
@@ -255,9 +286,16 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 		}
 
 #ifdef ASYNC
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif 
 		MPI_Status status_t;
 		int ret = MPI_Wait(&_request, &status_t);
 		assert(ret == MPI_SUCCESS);
+#ifdef PROF
+		te = MPI_Wtime();
+		_cpu_wait_gpu += te - ts;
+#endif
 #endif
 
 		for (int d=0; d < _min_delay; d++) {
@@ -267,12 +305,12 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 				int end = _recv_start[p*(_min_delay+1)+d+1];
 				if (end > start && (p/_gpu_num != _gpu_group)) {
 					assert(c_table_sizes[delay_idx] + end - start <= table_cap);
-					copyToGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + start, end-start);
+					COPYTOGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + start, end-start);
 					c_table_sizes[delay_idx] += end - start;
 				}
 			}
 		}
-		copyToGPU(table_sizes, c_table_sizes, max_delay+1);
+		COPYTOGPU(table_sizes, c_table_sizes, max_delay+1);
 
 		{ // Reset
 			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
@@ -292,9 +330,9 @@ int CrossSpike::log_gpu(int time, const char *name)
 
 	string s(name);
 
-	integer_t *start = copyFromGPU(_gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
+	integer_t *start = FROMGPU(_gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
 
-	integer_t *num = copyFromGPU(_gpu_array->_send_num, _proc_num);
+	integer_t *num = FROMGPU(_gpu_array->_send_num, _proc_num);
 
 	{
 		FILE *sf = fopen_c((s+".gpu.send").c_str(), time == 0 ? "w+" : "a+");
@@ -313,7 +351,10 @@ int CrossSpike::log_gpu(int time, const char *name)
 		}
 		fprintf(sf, "\n");
 
-		nid_t * data = copyFromGPU(_gpu_array->_send_data, _send_offset[_proc_num]);
+		nid_t * data = NULL;
+		if (_send_offset[_proc_num] > 0) {
+			data = FROMGPU(_gpu_array->_send_data, _send_offset[_proc_num]);
+		}
 		fprintf(sf, "Send data: ");
 		for (size_t i=0; i<_send_offset[_proc_num]; i++) {
 			fprintf(sf, FT_NID_T " ", data[i]);
@@ -322,12 +363,13 @@ int CrossSpike::log_gpu(int time, const char *name)
 
 		for (int d=0; d<_min_delay; d++) {
 			fprintf(sf, "Delay %d: \n", d);
-			for (int n=0; n<_proc_num; n++) {
-				fprintf(sf, "Proc %d: ", n);
-				int st = start[n*(_min_delay+1)+d];
-				int end = start[n*(_min_delay+1)+d+1];
+			for (int g=0; g<_gpu_num; g++) {
+				fprintf(sf, "GPU %d: ", g);
+				int idx = _gpu_group * _gpu_num + g;
+				int st = start[idx*(_min_delay+1)+d];
+				int end = start[idx*(_min_delay+1)+d+1];
 				for (int k=st; k<end; k++) {
-					fprintf(sf, FT_NID_T " ", data[_send_offset[n] + k]);
+					fprintf(sf, FT_NID_T " ", data[_send_offset[idx] + k]);
 				}
 				fprintf(sf, "\n");
 			}
@@ -340,9 +382,9 @@ int CrossSpike::log_gpu(int time, const char *name)
 	}
 
 	{
-		copyFromGPU(start, _gpu_array->_send_start, _min_delay * _proc_num + _proc_num);
+		COPYFROMGPU(start, _gpu_array->_recv_start, _min_delay * _proc_num + _proc_num);
 
-		copyFromGPU(num, _gpu_array->_send_num, _proc_num);
+		COPYFROMGPU(num, _gpu_array->_recv_num, _proc_num);
 		FILE *rf = fopen_c((s+".gpu.recv").c_str(), time == 0 ? "w+" : "a+");
 
 		fprintf(rf, "Time %d: \n", time);
@@ -359,7 +401,10 @@ int CrossSpike::log_gpu(int time, const char *name)
 		}
 		fprintf(rf, "\n");
 
-		nid_t *data = copyFromGPU(_gpu_array->_recv_data, _recv_offset[_proc_num]);
+		nid_t *data = NULL;
+		if (_recv_offset[_proc_num] > 0) {
+			data = FROMGPU(_gpu_array->_recv_data, _recv_offset[_proc_num]);
+		}
 		fprintf(rf, "Recv data: ");
 		for (size_t i=0; i<_recv_offset[_proc_num]; i++) {
 			fprintf(rf, FT_NID_T " ", data[i]);
@@ -368,12 +413,13 @@ int CrossSpike::log_gpu(int time, const char *name)
 
 		for (int d=0; d<_min_delay; d++) {
 			fprintf(rf, "Delay %d: \n", d);
-			for (int n=0; n<_proc_num; n++) {
-				fprintf(rf, "Proc %d: ", n);
-				int st = start[n*(_min_delay+1)+d];
-				int end = start[n*(_min_delay+1)+d+1];
+			for (int g=0; g<_gpu_num; g++) {
+				fprintf(rf, "GPU %d: ", g);
+				int idx = _gpu_group * _gpu_num + g;
+				int st = start[idx*(_min_delay+1)+d];
+				int end = start[idx*(_min_delay+1)+d+1];
 				for (int k=st; k<end; k++) {
-					fprintf(rf, FT_NID_T " ", data[_recv_offset[n] + k]);
+					fprintf(rf, FT_NID_T " ", data[_recv_offset[idx] + k]);
 				}
 				// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
 				fprintf(rf, "\n");

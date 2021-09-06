@@ -34,7 +34,7 @@ using std::vector;
   }                                                 \
 } while(0)
 
-// const int GPU_SIZE = 2;
+const int GPU_SIZE = 2;
 const int DELAY = 3;
 const int N = 4;
 const uinteger_t CAP = 8;
@@ -139,8 +139,6 @@ int main(int argc, char **argv)
 
 	// NCCLCHECK(ncclCommInitRank(&comm_gpu, gpu_num, id, gpu_rank));
 
-	to_attach();
-
 	CrossMap cm(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {
@@ -204,7 +202,7 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	CrossSpike cs(proc_rank, proc_num, DELAY, 1);
+	CrossSpike cs(proc_rank, proc_num, DELAY, GPU_SIZE);
 	cs._recv_offset[0] = 0;
 	cs._send_offset[0] = 0;
 
@@ -225,8 +223,10 @@ int main(int argc, char **argv)
 
 	cs.to_gpu();
 
-	nid_t *table_gpu = copyToGPU(table,  (DELAY+1) * CAP);
-	nid_t *table_sizes_gpu = copyToGPU(table_sizes, DELAY+1);
+	to_attach();
+
+	nid_t *table_gpu = TOGPU(table,  (DELAY+1) * CAP);
+	nid_t *table_sizes_gpu = TOGPU(table_sizes, DELAY+1);
 
 	for (int t=0; t<DELAY; t++) {
 		cs.fetch_gpu(&cm, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, DELAY, t, 2, 32);
@@ -236,8 +236,8 @@ int main(int argc, char **argv)
 	}
 
 
-	copyFromGPU(table, table_gpu, (DELAY+1) * CAP);
-	copyFromGPU(table_sizes, table_sizes_gpu, DELAY+1);
+	COPYFROMGPU(table, table_gpu, (DELAY+1) * CAP);
+	COPYFROMGPU(table_sizes, table_sizes_gpu, DELAY+1);
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
