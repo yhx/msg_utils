@@ -18,15 +18,18 @@ __global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	TSIZE fired_size = fired_sizes[delay_idx];
 	for (int proc = 0; proc < proc_num; proc++) {
-		for (int idx = tid; idx < fired_size; idx += blockDim.x * gridDim.x) {
-			TID nid = static_cast<TID>(fired_table[fired_cap*delay_idx + idx]);
-			integer_t tmp = idx2index[nid];
-			if (tmp >= 0) {
-				integer_t map_nid = index2ridx[tmp*proc_num + proc];
-				if (map_nid >= 0) {
-					size_t test_loc = static_cast<size_t>(atomicAdd(const_cast<int*>(&cross_cnt), 1));
-					if (test_loc < MAX_BLOCK_SIZE) {
-						cross_neuron_id[test_loc] = static_cast<TID>(map_nid);
+		for (int i = 0; i < fired_size; i += blockDim.x * gridDim.x) {
+			int idx = i + tid;
+			if (idx < fired_size) {
+				TID nid = static_cast<TID>(fired_table[fired_cap*delay_idx + idx]);
+				integer_t tmp = idx2index[nid];
+				if (tmp >= 0) {
+					integer_t map_nid = index2ridx[tmp*proc_num + proc];
+					if (map_nid >= 0) {
+						size_t test_loc = static_cast<size_t>(atomicAdd(const_cast<int*>(&cross_cnt), 1));
+						if (test_loc < MAX_BLOCK_SIZE) {
+							cross_neuron_id[test_loc] = static_cast<TID>(map_nid);
+						}
 					}
 				}
 			}
