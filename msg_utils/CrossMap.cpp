@@ -2,10 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string>
 
 #include "../helper/helper_c.h"
 #include "../helper/helper_array_c.h"
 #include "CrossMap.h"
+
+using std::string;
 
 CrossMap::CrossMap()
 {
@@ -109,7 +112,8 @@ int CrossMap::compare(CrossMap &m)
 
 int CrossMap::log(const char *name)
 {
-	FILE *f = fopen_c(name, "w+");
+	string s(name);
+	FILE *f = fopen_c((s+".cm").c_str(), "w+");
 	fprintf(f, "%ld\n", _num);
 	fprintf(f, "%ld\n", _cross_size);
 	for (size_t i=0; i<_num; i++) {

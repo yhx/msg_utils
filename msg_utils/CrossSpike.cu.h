@@ -18,8 +18,8 @@ __global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	TSIZE fired_size = fired_sizes[delay_idx];
 	for (int proc = 0; proc < proc_num; proc++) {
-		for (int i = 0; i < fired_size; i += blockDim.x * gridDim.x) {
-			int idx = i + tid;
+		for (size_t i = 0; i < fired_size; i += blockDim.x * gridDim.x) {
+			size_t idx = i + tid;
 			if (idx < fired_size) {
 				TID nid = static_cast<TID>(fired_table[fired_cap*delay_idx + idx]);
 				integer_t tmp = idx2index[nid];
@@ -51,9 +51,11 @@ __global__ void fetch_kernel(TID *data, integer_t *offset, integer_t *num, const
 __global__ void update_kernel(integer_t *start, int proc_num, int min_delay, int curr_delay)
 {
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	for (int i=tid; i<proc_num; i++) {
-		start[i*(min_delay+1)+curr_delay+2] = start[i*(min_delay+1)+curr_delay+1];
+	// for (int i=tid; i<proc_num; i++) {
+	if (tid < proc_num) {
+		start[tid*(min_delay+1)+curr_delay+2] = start[tid*(min_delay+1)+curr_delay+1];
 	}
+	// }
 }
 
 #endif // CROSSSPIKE_CU_H

@@ -141,11 +141,9 @@ int CrossSpike::from_gpu()
 int CrossSpike::update_gpu(const int &curr_delay)
 {
 	if (curr_delay >= _min_delay -1) {
-		if (_proc_num > _gpu_num) {
-			COPYFROMGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
-			if (_send_offset[_proc_num] > 0) {
-				COPYFROMGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
-			}
+		COPYFROMGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
+		if (_send_offset[_proc_num] > 0) {
+			COPYFROMGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
 		}
 		msg_gpu();
 	} else {
