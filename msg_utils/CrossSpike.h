@@ -75,7 +75,7 @@ public:
 // #ifdef USE_GPU
 	int fetch_gpu(const CrossMap *map, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block);
 	int upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
-	int update_gpu(const int &curr_delay);
+	int update_gpu(const int &time);
 	int log_gpu(int time, const char *name);
 
 // #endif // USE_GPU
@@ -125,7 +125,7 @@ public:
 	// integer_t send_size;
 	// cap _proc_num * (delay+1)
 	integer_t *_send_start;
-	// cap _proc_num * delay
+	// cap _proc_num
 	integer_t *_send_num;
 
 	// cap _recv_offset[_proc_num]
