@@ -134,6 +134,8 @@ public:
 	// cap _send_offset[_proc_num]
 	nid_t *_send_data;
 
+	CrossSpike *_gpu_array;
+
 protected:
 	MPI_Request _request;
 
@@ -143,7 +145,6 @@ protected:
 	cudaStream_t _stream;
 // #endif
 
-	CrossSpike *_gpu_array;
 
 #ifdef PROF
 public:
