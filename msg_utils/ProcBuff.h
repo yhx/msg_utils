@@ -12,6 +12,10 @@ public:
 	integer_t *_recv_start;
 	integer_t *_send_start;
 
+	// Cap _proc_num + 1
+	integer_t *_recv_offset;
+	integer_t *_send_offset;
+
 	// Cap _proc_num
 	integer_t *_recv_num;
 	integer_t *_send_num;

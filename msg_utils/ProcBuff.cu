@@ -21,6 +21,23 @@ ProcBuff::ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num,
 		_sdata_size[i+1] = _sdata_size[i] + cs[i]->_send_offset[cs[i]->_proc_num];
 	}
 
+	_recv_offset = malloc_c<integer_t>(_proc_num);
+	_send_offset = malloc_c<integer_t>(_proc_num);
+
+	_recv_offset[0] = 0;
+	_send_offset[0] = 0;
+	for (int p=0; p<_proc_num; p++) {
+		_recv_offset[p+1] = _recv_offset[p];
+		_send_offset[p+1] = _send_offset[p];
+		for (int t=0; t<_thread_num; t++) {
+			int idx = p * _thread_num + t;
+			for (int k=0; k<_thread_num; k++) {
+				_recv_offset[p+1] += cs[k]->_recv_offset[idx+1] - _recv_offset[idx];
+				_send_offset[p+1] += cs[k]->_send_offset[idx+1] - _send_offset[idx];
+			}
+		}
+	}
+
 	int size = _proc_num * _thread_num * (_min_delay +  1);
 
 	_recv_start = malloc_c<integer_t>(size);
@@ -43,6 +60,8 @@ ProcBuff::~ProcBuff()
 	_recv_start = free_c(_recv_start);
 	_send_start = free_c(_send_start);
 
+	_recv_offset = free_c(_recv_offset);
+	_send_offset = free_c(_send_offset);
 	_recv_num = free_c(_recv_num);
 	_send_num = free_c(_send_num);
 
