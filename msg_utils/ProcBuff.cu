@@ -21,19 +21,20 @@ ProcBuff::ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num,
 		_sdata_size[i+1] = _sdata_size[i] + cs[i]->_send_offset[cs[i]->_proc_num];
 	}
 
-	_recv_offset = malloc_c<integer_t>(_proc_num);
-	_send_offset = malloc_c<integer_t>(_proc_num);
-
+	_recv_offset = malloc_c<integer_t>(_proc_num * _thread_num);
+	_send_offset = malloc_c<integer_t>(_proc_num * _thread_num);
+	// _recv_offset = malloc_c<integer_t>(_proc_num);
+	// _send_offset = malloc_c<integer_t>(_proc_num);
 	_recv_offset[0] = 0;
 	_send_offset[0] = 0;
 	for (int p=0; p<_proc_num; p++) {
-		_recv_offset[p+1] = _recv_offset[p];
-		_send_offset[p+1] = _send_offset[p];
+		_recv_offset[(p+1)*_thread_num] = _recv_offset[p*_thread_num];
+		_send_offset[(p+1)*_thread_num] = _send_offset[p*_thread_num];
 		for (int t=0; t<_thread_num; t++) {
 			int idx = p * _thread_num + t;
 			for (int k=0; k<_thread_num; k++) {
-				_recv_offset[p+1] += cs[k]->_recv_offset[idx+1] - _recv_offset[idx];
-				_send_offset[p+1] += cs[k]->_send_offset[idx+1] - _send_offset[idx];
+				_recv_offset[(p+1)*thread_num] += cs[k]->_recv_offset[idx+1] - cs[k]->_recv_offset[idx];
+				_send_offset[(p+1)*thread_num] += cs[k]->_send_offset[idx+1] - cs[k]->_send_offset[idx];
 			}
 		}
 	}
