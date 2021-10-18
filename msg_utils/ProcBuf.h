@@ -1,12 +1,12 @@
-#ifndef PROCBUFF_H
-#define PROCBUFF_H
+#ifndef PROCBUF_H
+#define PROCBUF_H
 
 #include "CrossSpike.h"
 
-class ProcBuff {
+class ProcBuf {
 public:
-	ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
-	~ProcBuff();
+	ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
+	~ProcBuf();
 
 	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
@@ -17,6 +17,10 @@ public:
 	// Cap _proc_num + 1
 	integer_t *_recv_offset;
 	integer_t *_send_offset;
+
+	// Cap _proc_num * _thread_num 
+	integer_t *_rdata_offset;
+	integer_t *_sdata_offset;
 
 	// Cap _proc_num
 	integer_t *_recv_num;
@@ -40,4 +44,4 @@ public:
 	int _min_delay;
 };
 
-#endif // PROCBUFF_H
+#endif // PROCBUF_H
