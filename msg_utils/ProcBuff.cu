@@ -1,5 +1,6 @@
 
 #include "../helper/helper_c.h"
+#include "../helper/helper_gpu.h"
 #include "ProcBuff.h"
 
 ProcBuff::ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay)
@@ -47,8 +48,8 @@ ProcBuff::ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num,
 	_recv_num = malloc_c<integer_t>(_proc_num);
 	_send_num = malloc_c<integer_t>(_proc_num);
 
-	_recv_data = malloc_c<nid_t>(_rdata_size);
-	_send_data = malloc_c<nid_t>(_sdata_size);
+	_recv_data = malloc_c<nid_t>(_rdata_size[thread_num+1]);
+	_send_data = malloc_c<nid_t>(_sdata_size[thread_num+1]);
 }
 
 ProcBuff::~ProcBuff()
@@ -88,6 +89,8 @@ int ProcBuff::update_gpu(const int &thread_id, const int &time, pthread_barrier_
 		// msg thread offset
 		// msg data
 	} else {
-		_cs[thread_id]->update(time);
+		_cs[thread_id]->update_gpu(time);
 	}
+
+	return 0;
 }

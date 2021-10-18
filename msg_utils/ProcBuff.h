@@ -8,6 +8,8 @@ public:
 	ProcBuff(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
 	~ProcBuff();
 
+	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
+
 	// Cap _proc_num * _thread_num * (_min_delay + 1)
 	integer_t *_recv_start;
 	integer_t *_send_start;
