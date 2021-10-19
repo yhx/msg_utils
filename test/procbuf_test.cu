@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
-
-#include "nccl.h"
+#include <pthread.h>
 
 #include "catch.hpp"
 
@@ -37,83 +36,119 @@ using std::vector;
 } while(0)
 
 // const int GPU_SIZE = 2;
-const int DELAY = 3;
+const int DELAY = 1;
 const int N = 4;
 const uinteger_t CAP = 8;
 const int THREAD_NUM = 2;
 
 int proc_rank = -1;
+int proc_num = -1;
 
-nid_t table[(DELAY+1) * CAP] = {
-	0, 0, 0, 0, 0, 0, 0, 0,
-	1, 2, 0, 0, 0, 0, 0, 0,
-	2, 3, 0, 0, 0, 0, 0, 0,
-	1, 2, 3, 4, 0, 0, 0, 0
-};
+// nid_t table[(DELAY+1) * CAP] = {
+// 	0, 0, 0, 0, 0, 0, 0, 0,
+// 	1, 2, 0, 0, 0, 0, 0, 0,
+// 	2, 3, 0, 0, 0, 0, 0, 0,
+// 	1, 2, 3, 4, 0, 0, 0, 0
+// };
+// 
+// nsize_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
-nsize_t table_sizes[DELAY+1] = {1, 2, 3, 4};
+inline int get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
+	return 100000* d + 10000 * s_p + 1000 * s_t + 100 * d_p + 10 * d_t + d_n;
+}
 
+pthread_barrier_t g_proc_barrier;
+ProcBuf *pbuf = NULL;
+
+void * run_thread(void *para) {
+	long tid = (long)para;
+
+	CrossSpike &cs = *(pbuf->_cs[tid]);
+	cs._recv_offset[0] = 0;
+	cs._send_offset[0] = 0;
+
+	for (int i=0; i<proc_num*THREAD_NUM; i++) {
+		cs._recv_offset[i+1] = cs._recv_offset[i] + N;
+		cs._send_offset[i+1] = cs._send_offset[i] + N;
+	}
+
+	cs.alloc();
+
+	for (int p=0; p<proc_num; p++) {
+		for (int t=0; t<THREAD_NUM; t++) {
+			int idx = p * THREAD_NUM + t;
+			cs._recv_start[idx*(DELAY+1)+0] = cs._recv_offset[idx];
+			cs._send_start[idx*(DELAY+1)+0] = cs._send_offset[idx];
+			for (int d=0; d<DELAY; d++) {
+				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + N;
+				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + N;
+				for (int k=0; k<N; k++) {
+					cs._send_data[cs._recv_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
+				}
+			}
+		}
+
+	}
+
+	pthread_barrier_wait(&g_proc_barrier);
+
+	pbuf->update_gpu(tid, 1, &g_proc_barrier);
+
+	return 0;
+}
 
 TEST_CASE("CHECK Update", "") {
-	switch (proc_rank) {
-		case 0:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 1:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 2:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 3:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		default:
-			printf("Test case should carry out on four processes\n");
-			exit(-1);
-			break;
+	CrossSpike **css = new CrossSpike*[THREAD_NUM];
+	for (int tid=0; tid<THREAD_NUM; tid++) {
+		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 1);
 	}
+
+	pbuf = new ProcBuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);
+
+	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
+	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
+	assert(thread_ids != NULL);
+
+
+	for (int i=0; i<THREAD_NUM; i++) {
+		int ret = pthread_create(&(thread_ids[i]), NULL, &run_thread, (void*)i);
+		assert(ret == 0);
+	}
+
+	for (int i=0; i<THREAD_NUM; i++) {
+		pthread_join(thread_ids[i], NULL);
+	}
+	pthread_barrier_destroy(&g_proc_barrier);
+
+	for (int p=0; p<proc_num; p++) {
+		for (int t=0; t<THREAD_NUM; p++) {
+			for (int d=0; d<DELAY; d++) {
+				int idx = p * THREAD_NUM + t;
+				int start = pbuf->_recv_start[idx*(DELAY+1)+d];
+				int end = pbuf->_recv_start[idx*(DELAY+1)+d+1];
+				for (int i=start; i<end; i++) {
+					for (int tid=0; tid<THREAD_NUM; tid++) {
+						REQUIRE(pbuf->_recv_data[pbuf->_recv_offset[p]+pbuf->_rdata_offset[tid]+i] == get_value(d, p, t, proc_rank, tid, i-start));
+					}
+				}
+			}
+		}
+	}
+
+
+	// CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
 }
 
 int main(int argc, char **argv)
 {
 	MPI_Init(&argc, &argv);
 
-	int proc_num = 0;
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &proc_num);
 
-	attach();
+	to_attach();
 
-#ifdef 0
+#if 0
 	CrossMap cm(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {

@@ -161,22 +161,24 @@ int ProcBuf::upload_gpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 		for (int d=0; d < _min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
 			for (int p = 0; p<_proc_num; p++) {
-				int idx = p * _thread_num + thread_id;
-				int start = _recv_start[idx*(_min_delay+1)+d];
-				int end = _recv_start[idx*(_min_delay+1)+d+1];
-				int num = end - start;
-				if (num > 0) {
-					assert(c_table_sizes[delay_idx] + num <= table_cap);
-					COPYTOGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + _rdata_offset[idx] + start, num);
-					c_table_sizes[delay_idx] += num;
+				for (int t = 0; t<_thread_num; t++) {
+					int idx = p * _thread_num + t;
+					int start = _recv_start[idx*(_min_delay+1)+d];
+					int end = _recv_start[idx*(_min_delay+1)+d+1];
+					int num = end - start;
+					if (num > 0) {
+						assert(c_table_sizes[delay_idx] + num <= table_cap);
+						COPYTOGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + _rdata_offset[thread_id] + start, num);
+						c_table_sizes[delay_idx] += num;
+					}
 				}
 			}
 		}
 		COPYTOGPU(table_sizes, c_table_sizes, max_delay+1);
 
 		{ // Reset
-			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
-			gpuMemset(_gpu_array->_send_start, 0, _min_delay * _proc_num + _proc_num);
+			gpuMemset(_cs[thread_id]->_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
+			gpuMemset(_cs[thread_id]->_gpu_array->_send_start, 0, _min_delay * _proc_num + _proc_num);
 
 			memset_c(_recv_num, 0, _proc_num);
 			memset_c(_send_num, 0, _proc_num);
