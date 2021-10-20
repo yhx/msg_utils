@@ -8,7 +8,7 @@
 
 #include "catch.hpp"
 
-#include "../helper/helper_gpu.h"
+// #include "../helper/helper_gpu.h"
 #include "../msg_utils/msg_utils.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
