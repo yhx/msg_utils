@@ -111,7 +111,7 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 		// msg thread offset
 		if (thread_id == 0) {
 			for (int i=0; i<_thread_num; i++) {
-				MPI_Alltoall(_sdata_offset, _thread_num, MPI_INTEGER_T, _sdata_offset, _thread_num, MPI_INTEGER_T, MPI_COMM_WORLD);
+				MPI_Alltoall(_sdata_offset, _thread_num, MPI_INTEGER_T, _rdata_offset, _thread_num, MPI_INTEGER_T, MPI_COMM_WORLD);
 			}
 		}
 		// fetch data
@@ -122,8 +122,10 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 			}
 		}
 		// msg data
-		int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
-		assert(ret == MPI_SUCCESS);
+		if (thread_id == 0) {
+			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+			assert(ret == MPI_SUCCESS);
+		}
 	} else {
 		_cs[thread_id]->update_gpu(time);
 	}
