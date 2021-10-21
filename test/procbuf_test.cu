@@ -64,15 +64,6 @@ void * run_thread(void *para) {
 	long tid = (long)para;
 
 	CrossSpike &cs = *(pbuf->_cs[tid]);
-	cs._recv_offset[0] = 0;
-	cs._send_offset[0] = 0;
-
-	for (int i=0; i<proc_num*THREAD_NUM; i++) {
-		cs._recv_offset[i+1] = cs._recv_offset[i] + N;
-		cs._send_offset[i+1] = cs._send_offset[i] + N;
-	}
-
-	cs.alloc();
 
 	for (int p=0; p<proc_num; p++) {
 		for (int t=0; t<THREAD_NUM; t++) {
@@ -101,6 +92,15 @@ TEST_CASE("CHECK Update", "") {
 	CrossSpike **css = new CrossSpike*[THREAD_NUM];
 	for (int tid=0; tid<THREAD_NUM; tid++) {
 		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 0);
+		css[tid]->_recv_offset[0] = 0;
+		css[tid]->_send_offset[0] = 0;
+
+		for (int i=0; i<proc_num*THREAD_NUM; i++) {
+			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + N;
+			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + N;
+		}
+
+		css[tid]->alloc();
 	}
 
 	pbuf = new ProcBuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);
