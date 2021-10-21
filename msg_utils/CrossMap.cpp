@@ -5,7 +5,7 @@
 #include <string>
 
 #include "../helper/helper_c.h"
-#include "../helper/helper_array_c.h"
+#include "../helper/helper_array.h"
 #include "CrossMap.h"
 
 using std::string;

@@ -8,6 +8,10 @@ public:
 	ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
 	~ProcBuf();
 
+	int update_cpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
+
+	int upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
+
 	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
 	int upload_gpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
@@ -20,9 +24,15 @@ public:
 	integer_t *_recv_offset;
 	integer_t *_send_offset;
 
-	// Cap _proc_num * _thread_num 
+	// instance level offset view for sender
+    // Cap _proc_num * dst_thread_num * src_thread_num;
+	integer_t *_data_offset;
+
+	// instance level offset view for receiver
+	// Cap _proc_num * dst_thread_num
 	integer_t *_rdata_offset;
 	integer_t *_sdata_offset;
+
 
 	// Cap _proc_num
 	integer_t *_recv_num;

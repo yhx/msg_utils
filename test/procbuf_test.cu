@@ -77,24 +77,22 @@ void * run_thread(void *para) {
 	for (int p=0; p<proc_num; p++) {
 		for (int t=0; t<THREAD_NUM; t++) {
 			int idx = p * THREAD_NUM + t;
-			cs._recv_start[idx*(DELAY+1)+0] = cs._recv_offset[idx];
-			cs._send_start[idx*(DELAY+1)+0] = cs._send_offset[idx];
+			cs._recv_start[idx*(DELAY+1)+0] = 0;
+			cs._send_start[idx*(DELAY+1)+0] = 0;
 			for (int d=0; d<DELAY; d++) {
 				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + N;
 				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + N;
 				for (int k=0; k<N; k++) {
-					cs._send_data[cs._recv_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
+					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
 				}
 			}
 		}
 
 	}
 
-	cs.to_gpu();
-
 	pthread_barrier_wait(&g_proc_barrier);
 
-	pbuf->update_gpu(tid, 1, &g_proc_barrier);
+	pbuf->update_cpu(tid, 1, &g_proc_barrier);
 
 	return 0;
 }
@@ -102,7 +100,7 @@ void * run_thread(void *para) {
 TEST_CASE("CHECK Update", "") {
 	CrossSpike **css = new CrossSpike*[THREAD_NUM];
 	for (int tid=0; tid<THREAD_NUM; tid++) {
-		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 1);
+		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 0);
 	}
 
 	pbuf = new ProcBuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);

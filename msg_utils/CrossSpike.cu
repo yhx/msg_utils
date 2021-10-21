@@ -8,8 +8,12 @@
 
 CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, const MPI_Comm &comm) : CrossSpike(proc_rank, proc_num, delay)
 {
-	assert(gpu_num > 0);
-	_gpu_group = proc_rank / gpu_num;
+	assert(gpu_num >= 0);
+	if (gpu_num > 0) {
+		_gpu_group = proc_rank / gpu_num;
+	} else {
+		_gpu_group = proc_rank;
+	}
 
 	MPI_Comm_split(comm, _gpu_group, _proc_rank, &_grp_comm);
 
@@ -22,8 +26,10 @@ CrossSpike::CrossSpike(int proc_rank, int proc_num, int delay, int gpu_num, cons
 	MPI_Get_processor_name(processor_name, &name_len);
 	printf("Processor %s, rank %d out of %d processes, rank %d out of %d GPUs\n", processor_name, proc_rank, proc_num, _gpu_rank, gpu_num);
 
-	gm.set(_gpu_rank);
-	gm.lock();
+	if (gpu_num > 0) {
+		gm.set(_gpu_rank);
+		gm.lock();
+	}
 
 	if (gpu_num > 1) {
 		ncclUniqueId id;
