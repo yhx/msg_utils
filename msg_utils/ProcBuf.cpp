@@ -166,13 +166,15 @@ int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 {
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay -1) {
-#ifdef PROF
-		ts = MPI_Wtime();
-#endif
-#ifdef PROF
-		te = MPI_Wtime();
-		_gpu_wait += te - ts;
-#endif
+// #ifdef PROF
+// 		double ts = 0, te = 0;
+// 		
+// 		ts = MPI_Wtime();
+// #endif
+// #ifdef PROF
+// 		te = MPI_Wtime();
+// 		_gpu_wait += te - ts;
+// #endif
 
 #if 0
 // #ifdef ASYNC
