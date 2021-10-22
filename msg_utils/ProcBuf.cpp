@@ -3,6 +3,7 @@
 
 #include "../helper/helper_c.h"
 #include "../helper/helper_array.h"
+#include "../helper/helper_parallel.h"
 #include "ProcBuf.h"
 
 using std::string;
@@ -146,14 +147,14 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		}
 		// msg data
 		pthread_barrier_wait(barrier);
-		mpi_print_array(_send_num, _proc_num, (string("Proc send num:")+to_string(_proc_rank)).c_str(), _proc_rank, _proc_num);
-		mpi_print_array(_send_data, _send_num[_proc_num-1], (string("Proc send:")+to_string(_proc_rank)).c_str(), _proc_rank, _proc_num);
+		mpi_print_array(_send_num, _proc_num, _proc_rank, _proc_num, (string("Proc send num:")+to_string(_proc_rank)).c_str());
+		mpi_print_array(_send_data, _send_num[_proc_num-1], _proc_rank, _proc_num, (string("Proc send:")+to_string(_proc_rank)).c_str());
 		if (thread_id == 0) {
 			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 			assert(ret == MPI_SUCCESS);
 		}
-		mpi_print_array(_recv_num, _proc_num, (string("Proc recv num:")+to_string(_proc_rank)).c_str(), _proc_rank, _proc_num);
-		mpi_print_array(_recv_data, _recv_num[_proc_num-1], (string("Proc recv:")+to_string(_proc_rank)).c_str(), _proc_rank, _proc_num);
+		mpi_print_array(_recv_num, _proc_num, _proc_rank, _proc_num, (string("Proc recv num:")+to_string(_proc_rank)).c_str());
+		mpi_print_array(_recv_data, _recv_num[_proc_num-1], _proc_rank, _proc_num, (string("Proc recv:")+to_string(_proc_rank)).c_str());
 	} else {
 		_cs[thread_id]->update_cpu(time);
 	}
