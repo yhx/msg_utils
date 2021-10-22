@@ -38,7 +38,7 @@ using std::vector;
 // const int GPU_SIZE = 2;
 const int DELAY = 1;
 const int N = 4;
-const uinteger_t CAP = 8;
+// const uinteger_t CAP = 8;
 const int THREAD_NUM = 2;
 
 int proc_rank = -1;
@@ -71,9 +71,10 @@ void * run_thread(void *para) {
 			cs._recv_start[idx*(DELAY+1)+0] = 0;
 			cs._send_start[idx*(DELAY+1)+0] = 0;
 			for (int d=0; d<DELAY; d++) {
-				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + N;
-				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + N;
-				for (int k=0; k<N; k++) {
+				int data_size = idx;
+				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + data_size;
+				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + data_size;
+				for (int k=0; k<data_size; k++) {
 					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
 				}
 			}
@@ -111,7 +112,7 @@ TEST_CASE("CHECK Update", "") {
 
 
 	for (int i=0; i<THREAD_NUM; i++) {
-		int ret = pthread_create(&(thread_ids[i]), NULL, &run_thread, (void*)i);
+		int ret = pthread_create(&(thread_ids[i]), NULL, &run_thread, (void*)(long)i);
 		assert(ret == 0);
 	}
 
