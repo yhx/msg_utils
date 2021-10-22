@@ -121,15 +121,17 @@ TEST_CASE("CHECK Update", "") {
 	pthread_barrier_destroy(&g_proc_barrier);
 
 	for (int p=0; p<proc_num; p++) {
-		for (int t=0; t<THREAD_NUM; p++) {
-			for (int d=0; d<DELAY; d++) {
-				int idx = p * THREAD_NUM + t;
-				int start = pbuf->_recv_start[idx*(DELAY+1)+d];
-				int end = pbuf->_recv_start[idx*(DELAY+1)+d+1];
-				for (int i=start; i<end; i++) {
-					for (int tid=0; tid<THREAD_NUM; tid++) {
-						REQUIRE(pbuf->_recv_data[pbuf->_recv_offset[p]+pbuf->_rdata_offset[tid]+i] == get_value(d, p, t, proc_rank, tid, i-start));
+		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
+			int count = 0;
+			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				for (int d=0; d<DELAY; d++) {
+					int idx = p * THREAD_NUM + s_t;
+					int start = pbuf->_recv_start[idx*(DELAY+1)+d];
+					int end = pbuf->_recv_start[idx*(DELAY+1)+d+1];
+					for (int i=start; i<end; i++) {
+						REQUIRE(pbuf->_recv_data[pbuf->_recv_offset[p]+pbuf->_rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
+					count += end - start;
 				}
 			}
 		}
