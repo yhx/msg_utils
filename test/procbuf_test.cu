@@ -97,8 +97,8 @@ TEST_CASE("CHECK Update", "") {
 		css[tid]->_send_offset[0] = 0;
 
 		for (int i=0; i<proc_num*THREAD_NUM; i++) {
-			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + N;
-			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + N;
+			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + proc_num*THREAD_NUM;
+			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + proc_num*THREAD_NUM;
 		}
 
 		css[tid]->alloc();
