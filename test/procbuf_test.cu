@@ -72,7 +72,7 @@ void * run_thread(void *para) {
 			cs._send_start[idx*(DELAY+1)+0] = 0;
 			for (int d=0; d<DELAY; d++) {
 				int data_size = idx;
-				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + data_size;
+				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + proc_rank*THREAD_NUM + tid;
 				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + data_size;
 				for (int k=0; k<data_size; k++) {
 					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
