@@ -53,17 +53,21 @@ int proc_num = -1;
 // 
 // nsize_t table_sizes[DELAY+1] = {1, 2, 3, 4};
 
+struct ThreadPara {
+	ProcBuf *pbuf;
+	pthread_barrier_t *barrier;
+	int tid;
+};
+
 inline int get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
 	return 100000* d + 10000 * s_p + 1000 * s_t + 100 * d_p + 10 * d_t + d_n;
 }
 
-pthread_barrier_t g_proc_barrier;
-ProcBuf *pbuf = NULL;
+void * check_update_1(void *para) {
+	ThreadPara *tmp = static_cast<ThreadPara*>(para);
+	int tid = tmp->tid;
 
-void * run_thread(void *para) {
-	long tid = (long)para;
-
-	CrossSpike &cs = *(pbuf->_cs[tid]);
+	CrossSpike &cs = *(tmp->pbuf->_cs[tid]);
 
 	for (int p=0; p<proc_num; p++) {
 		for (int t=0; t<THREAD_NUM; t++) {
@@ -72,7 +76,6 @@ void * run_thread(void *para) {
 			cs._send_start[idx*(DELAY+1)+0] = 0;
 			for (int d=0; d<DELAY; d++) {
 				int data_size = idx;
-				cs._recv_start[idx*(DELAY+1)+d+1] = cs._recv_start[idx*(DELAY+1)+d] + proc_rank*THREAD_NUM + tid;
 				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + data_size;
 				for (int k=0; k<data_size; k++) {
 					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
@@ -82,14 +85,14 @@ void * run_thread(void *para) {
 
 	}
 
-	pthread_barrier_wait(&g_proc_barrier);
+	pthread_barrier_wait(tmp->barrier);
 
-	pbuf->update_cpu(tid, 1, &g_proc_barrier);
+	tmp->pbuf->update_cpu(tid, 1, tmp->barrier);
 
 	return 0;
 }
 
-TEST_CASE("CHECK Update", "") {
+TEST_CASE("CHECK Update 1", "") {
 	CrossSpike **css = new CrossSpike*[THREAD_NUM];
 	for (int tid=0; tid<THREAD_NUM; tid++) {
 		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 0);
@@ -104,15 +107,21 @@ TEST_CASE("CHECK Update", "") {
 		css[tid]->alloc();
 	}
 
-	pbuf = new ProcBuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);
+	ProcBuf pbuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);
+
+	pthread_barrier_t g_proc_barrier;
 
 	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 
+	ThreadPara *para = new ThreadPara[2];;
 
 	for (int i=0; i<THREAD_NUM; i++) {
-		int ret = pthread_create(&(thread_ids[i]), NULL, &run_thread, (void*)(long)i);
+		para[i].pbuf = &pbuf;
+		para[i].barrier = &g_proc_barrier;
+		para[i].tid = i;
+		int ret = pthread_create(&(thread_ids[i]), NULL, &check_update_1, (void*)(&para[i]));
 		assert(ret == 0);
 	}
 
@@ -126,11 +135,101 @@ TEST_CASE("CHECK Update", "") {
 			int count = 0;
 			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
 				for (int d=0; d<DELAY; d++) {
-					int idx = p * THREAD_NUM + s_t;
-					int start = pbuf->_recv_start[idx*(DELAY+1)+d];
-					int end = pbuf->_recv_start[idx*(DELAY+1)+d+1];
+					int idx = p * THREAD_NUM + d_t;
+					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d];
+					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d+1];
+					REQUIRE(end-start == proc_rank * THREAD_NUM + d_t);
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf->_recv_data[pbuf->_recv_offset[p]+pbuf->_rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+					}
+					count += end - start;
+				}
+			}
+		}
+	}
+
+
+	// CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
+}
+
+void * check_update_2(void *para) {
+	ThreadPara *tmp = static_cast<ThreadPara*>(para);
+	int tid = tmp->tid;
+
+	CrossSpike &cs = *(tmp->pbuf->_cs[tid]);
+
+	for (int p=0; p<proc_num; p++) {
+		for (int t=0; t<THREAD_NUM; t++) {
+			int idx = p * THREAD_NUM + t;
+			cs._recv_start[idx*(DELAY+1)+0] = 0;
+			cs._send_start[idx*(DELAY+1)+0] = 0;
+			for (int d=0; d<DELAY; d++) {
+				int data_size = THREAD_NUM*proc_num+1-idx;
+				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + data_size;
+				for (int k=0; k<data_size; k++) {
+					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
+				}
+			}
+		}
+
+	}
+
+	pthread_barrier_wait(tmp->barrier);
+
+	tmp->pbuf->update_cpu(tid, 1, tmp->barrier);
+
+	return 0;
+}
+
+TEST_CASE("CHECK Update 2", "") {
+	CrossSpike **css = new CrossSpike*[THREAD_NUM];
+	for (int tid=0; tid<THREAD_NUM; tid++) {
+		css[tid] = new CrossSpike(proc_rank, proc_num * THREAD_NUM, DELAY, 0);
+		css[tid]->_recv_offset[0] = 0;
+		css[tid]->_send_offset[0] = 0;
+
+		for (int i=0; i<proc_num*THREAD_NUM; i++) {
+			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + proc_num*THREAD_NUM+1;
+			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + proc_num*THREAD_NUM+1;
+		}
+
+		css[tid]->alloc();
+	}
+
+	ProcBuf pbuf(css, proc_rank, proc_num, THREAD_NUM, DELAY);
+
+	pthread_barrier_t g_proc_barrier;
+
+	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
+	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
+	assert(thread_ids != NULL);
+
+	ThreadPara *para = new ThreadPara[2];;
+
+	for (int i=0; i<THREAD_NUM; i++) {
+		para[i].pbuf = &pbuf;
+		para[i].barrier = &g_proc_barrier;
+		para[i].tid = i;
+		int ret = pthread_create(&(thread_ids[i]), NULL, &check_update_2, (void*)(&para[i]));
+		assert(ret == 0);
+	}
+
+	for (int i=0; i<THREAD_NUM; i++) {
+		pthread_join(thread_ids[i], NULL);
+	}
+	pthread_barrier_destroy(&g_proc_barrier);
+
+	for (int p=0; p<proc_num; p++) {
+		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
+			int count = 0;
+			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				for (int d=0; d<DELAY; d++) {
+					int idx = p * THREAD_NUM + d_t;
+					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d];
+					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d+1];
+					REQUIRE(end-start == THREAD_NUM*proc_num+1-(proc_rank * THREAD_NUM + d_t));
+					for (int i=start; i<end; i++) {
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
