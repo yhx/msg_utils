@@ -37,7 +37,7 @@ using std::vector;
 
 // const int GPU_SIZE = 2;
 const int DELAY = 1;
-const int N = 4;
+// const int N = 4;
 // const uinteger_t CAP = 8;
 const int THREAD_NUM = 2;
 
@@ -140,7 +140,7 @@ TEST_CASE("CHECK Update 1", "") {
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d+1];
 					REQUIRE(end-start == proc_rank * THREAD_NUM + d_t);
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
@@ -164,7 +164,7 @@ void * check_update_2(void *para) {
 			cs._recv_start[idx*(DELAY+1)+0] = 0;
 			cs._send_start[idx*(DELAY+1)+0] = 0;
 			for (int d=0; d<DELAY; d++) {
-				int data_size = THREAD_NUM*proc_num+1-idx;
+				int data_size = THREAD_NUM*proc_num+1-(proc_rank*THREAD_NUM+tid);
 				cs._send_start[idx*(DELAY+1)+d+1] = cs._send_start[idx*(DELAY+1)+d] + data_size;
 				for (int k=0; k<data_size; k++) {
 					cs._send_data[cs._send_offset[idx] + cs._send_start[idx*(DELAY+1)+d] + k] = get_value(d, proc_rank, tid, p, t, k); 
@@ -227,9 +227,9 @@ TEST_CASE("CHECK Update 2", "") {
 					int idx = p * THREAD_NUM + d_t;
 					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d];
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(DELAY+1)+idx*(DELAY+1)+d+1];
-					REQUIRE(end-start == THREAD_NUM*proc_num+1-(proc_rank * THREAD_NUM + d_t));
+					REQUIRE(end-start == THREAD_NUM*proc_num+1-(p * THREAD_NUM + s_t));
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[d_t]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
@@ -237,8 +237,6 @@ TEST_CASE("CHECK Update 2", "") {
 		}
 	}
 
-
-	// CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
 }
 
 int main(int argc, char **argv)
@@ -250,7 +248,6 @@ int main(int argc, char **argv)
 
 	to_attach();
 
-#if 0
 	CrossMap cm(N, N-1, proc_num);
 
 	for (int i=0; i<N; i++) {

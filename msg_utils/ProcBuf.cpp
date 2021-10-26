@@ -100,10 +100,12 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		if (thread_id == 0) {
 			for (int i=0; i<_thread_num; i++) {
 				int size = _thread_num * (_min_delay+1);
+				// _recv_start [s_t, s_p, d_t]
 				MPI_Alltoall(_cs[i]->_send_start, size, MPI_INTEGER_T, _recv_start + i * _proc_num * size, size, MPI_INTEGER_T, MPI_COMM_WORLD);
 			}
 		}
 		// calc thread offset
+		// _data_offset [d_p, d_t, s_t]
 		int bk_size = _proc_num / _thread_num;
 		for (int p=0; p<bk_size; p++) {
 			int pid = bk_size * thread_id + p;
@@ -138,13 +140,13 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		pthread_barrier_wait(barrier);
 		// calc recv_num
 		for (int p=0; p<bk_size; p++) {
-			int pid = bk_size * thread_id + p;
-			int idx = pid * _thread_num + _thread_num - 1;
-			_recv_num[pid] = _rdata_offset[idx];
-			integer_t * start_t = _recv_start + (_thread_num - 1) * _proc_num * _thread_num * (_min_delay+1);
-			for (int p=0; p<_proc_num; p++) {
-				int idx_t = p * _thread_num + _thread_num - 1;
-				_recv_num[pid] += start_t[idx_t*(_min_delay+1) + _min_delay] - start_t[idx_t*(_min_delay+1)];
+			int s_p = bk_size * thread_id + p;
+			int idx = s_p * _thread_num + _thread_num - 1;
+			_recv_num[s_p] = _rdata_offset[idx];
+			int idx_d = idx * (_min_delay+1);
+			for (int s_t=0; s_t<_thread_num; s_t++) {
+			    int idx_t = idx_d + s_t * _proc_num * _thread_num * (_min_delay+1);
+				_recv_num[s_p] += _recv_start[idx_t + _min_delay] - _recv_start[idx_t];
 			}
 		}
 		// msg data
@@ -152,28 +154,25 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		if (thread_id == 0) {
 #if 1
 			for (int i=0; i<_thread_num; i++) {
-				mpi_print_array(_cs[i]->_send_start, _proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_start").c_str());
+				mpi_print_array(_cs[i]->_send_start, _proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_start:").c_str());
 			}
-			// for (int i=0; i<_thread_num; i++) {
-			// 	mpi_print_array(_cs[i]->_recv_start, _proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" recv").c_str());
-			// }
 			for (int i=0; i<_thread_num; i++) {
-				mpi_print_array(_cs[i]->_send_offset, _proc_num*_thread_num+1, _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_offset").c_str());
+				mpi_print_array(_cs[i]->_send_offset, _proc_num*_thread_num+1, _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_offset:").c_str());
 			}
 			for (int i=0; i<_thread_num; i++) {
 				mpi_print_array(_cs[i]->_send_data, _cs[i]->_send_offset[_proc_num*_thread_num], _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_data").c_str());
 			}
-			mpi_print_array(_recv_start, _thread_num*_proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("recv_start ")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_data_offset, _thread_num*_thread_num*_proc_num, _proc_rank, _proc_num, (string("data_offset:")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_sdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("sdata_offset:")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_rdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("rdata_offset:")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_send_num, _proc_num, _proc_rank, _proc_num, (string("Proc send num:")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_recv_num, _proc_num, _proc_rank, _proc_num, (string("Proc recv num:")+to_string(_proc_rank)).c_str());
-			mpi_print_array(_send_data, _send_offset[_proc_num-1]+_send_num[_proc_num-1], _proc_rank, _proc_num, (string("Send ")+to_string(_proc_rank)).c_str());
+			mpi_print_array(_recv_start, _thread_num*_proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("recv_start ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_data_offset, _thread_num*_thread_num*_proc_num, _proc_rank, _proc_num, (string("data_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_sdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("sdata_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_rdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("rdata_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_send_num, _proc_num, _proc_rank, _proc_num, (string("Proc send num ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_recv_num, _proc_num, _proc_rank, _proc_num, (string("Proc recv num ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_send_data, _send_offset[_proc_num-1]+_send_num[_proc_num-1], _proc_rank, _proc_num, (string("Send ")+to_string(_proc_rank)+":").c_str());
 #endif
-			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
+			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_NID_T, MPI_COMM_WORLD);
 			assert(ret == MPI_SUCCESS);
-			mpi_print_array(_recv_data, _recv_offset[_proc_num-1]+_recv_num[_proc_num-1], _proc_rank, _proc_num, (string("Proc recv:")+to_string(_proc_rank)).c_str());
+			mpi_print_array(_recv_data, _recv_offset[_proc_num-1]+_recv_num[_proc_num-1], _proc_rank, _proc_num, (string("Proc recv ")+to_string(_proc_rank)+":").c_str());
 		}
 	} else {
 		_cs[thread_id]->update_cpu(time);
