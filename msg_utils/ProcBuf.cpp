@@ -212,15 +212,16 @@ int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 
 		for (int d=0; d < _min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
-			for (int p = 0; p<_proc_num; p++) {
-				for (int t = 0; t<_thread_num; t++) {
-					int idx = p * _thread_num + t;
-					int start = _recv_start[idx*(_min_delay+1)+d];
-					int end = _recv_start[idx*(_min_delay+1)+d+1];
+			for (int s_p = 0; s_p<_proc_num; s_p++) {
+				for (int s_t = 0; s_t<_thread_num; s_t++) {
+					int idx = s_p * _thread_num + thread_id;
+					integer_t *start_t = _recv_start + s_t * _thread_num * _proc_num * (_min_delay+1);
+					int start = start_t[idx*(_min_delay+1)+d];
+					int end = start_t[idx*(_min_delay+1)+d+1];
 					int num = end - start;
 					if (num > 0) {
 						assert(table_sizes[delay_idx] + num <= table_cap);
-						memcpy(tables + table_cap*delay_idx + table_sizes[delay_idx], _recv_data + _recv_offset[p] + _rdata_offset[thread_id] + start, num);
+						memcpy(tables + table_cap*delay_idx + table_sizes[delay_idx], _recv_data + _recv_offset[s_p] + _rdata_offset[idx] + start, num);
 						table_sizes[delay_idx] += num;
 					}
 				}
@@ -228,7 +229,7 @@ int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 		}
 
 		{ // Reset
-			memset(_cs[thread_id]->_recv_start, 0, _min_delay * _proc_num + _proc_num);
+			// memset(_cs[thread_id]->_recv_start, 0, _min_delay * _proc_num + _proc_num);
 			memset(_cs[thread_id]->_send_start, 0, _min_delay * _proc_num + _proc_num);
 
 			memset_c(_recv_num, 0, _proc_num);

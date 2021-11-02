@@ -27,7 +27,7 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 				int d_idx = pid * _thread_num + d_t;
 				for (int s_t=0; s_t<_thread_num; s_t++) {
 					int idx = d_idx * _thread_num + s_t;
-					if (dt != _thread_num - 1 || s_t != _thread_num - 1) {
+					if (d_t != _thread_num - 1 || s_t != _thread_num - 1) {
 						_data_offset[idx+1] = _data_offset[idx] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx * (_min_delay+1)]);
 					} else {
 						_send_num[pid] = _data_offset[idx] - _data_offset[pid*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx * (_min_delay+1)]);
@@ -110,15 +110,16 @@ int ProcBuf::upload_gpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 
 		for (int d=0; d < _min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
-			for (int p = 0; p<_proc_num; p++) {
-				for (int t = 0; t<_thread_num; t++) {
-					int idx = p * _thread_num + t;
-					int start = _recv_start[idx*(_min_delay+1)+d];
-					int end = _recv_start[idx*(_min_delay+1)+d+1];
+			for (int s_p = 0; s_p<_proc_num; s_p++) {
+				for (int s_t = 0; s_t<_thread_num; s_t++) {
+					int idx = s_p * _thread_num + thread_id;
+					integer_t *start_t = _recv_start + s_t * _thread_num * _proc_num * (_min_delay+1);
+					int start = start_t[idx*(_min_delay+1)+d];
+					int end = start_t[idx*(_min_delay+1)+d+1];
 					int num = end - start;
 					if (num > 0) {
 						assert(c_table_sizes[delay_idx] + num <= table_cap);
-						COPYTOGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[p] + _rdata_offset[thread_id] + start, num);
+						COPYTOGPU(tables + table_cap*delay_idx + c_table_sizes[delay_idx], _recv_data + _recv_offset[s_p] + _rdata_offset[idx] + start, num);
 						c_table_sizes[delay_idx] += num;
 					}
 				}
@@ -127,8 +128,7 @@ int ProcBuf::upload_gpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 		COPYTOGPU(table_sizes, c_table_sizes, max_delay+1);
 
 		{ // Reset
-			gpuMemset(_cs[thread_id]->_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
-			gpuMemset(_cs[thread_id]->_gpu_array->_send_start, 0, _min_delay * _proc_num + _proc_num);
+			gpuMemset(_cs[thread_id]->_gpu_array->_send_start, 0, (_min_delay+1) * _proc_num * _thread_num);
 
 			memset_c(_recv_num, 0, _proc_num);
 			memset_c(_send_num, 0, _proc_num);
