@@ -134,7 +134,8 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 			for (int d_t=0; d_t<_thread_num; d_t++) {
 				int d_idx = p * _thread_num + d_t;
 				int idx = d_idx * _thread_num + thread_id;
-				memcpy(_send_data + _send_offset[p] + _data_offset[idx], cst->_send_data + cst->_send_offset[d_idx] + cst->_send_start[d_idx*(_min_delay+1)], sizeof(nid_t)*(cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx*(_min_delay+1)]));
+				// memcpy(_send_data + _send_offset[p] + _data_offset[idx], cst->_send_data + cst->_send_offset[d_idx] + cst->_send_start[d_idx*(_min_delay+1)], sizeof(nid_t)*(cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx*(_min_delay+1)]));
+				memcpy_c(_send_data + _send_offset[p] + _data_offset[idx], cst->_send_data + cst->_send_offset[d_idx] + cst->_send_start[d_idx*(_min_delay+1)], cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx*(_min_delay+1)]);
 			}
 		}
 		pthread_barrier_wait(barrier);

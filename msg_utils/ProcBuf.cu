@@ -1,8 +1,13 @@
 
+#include <string>
+
 #include "../helper/helper_c.h"
 #include "../helper/helper_gpu.h"
+#include "../helper/helper_parallel.h"
 #include "ProcBuf.h"
 
+using std::string;
+using std::to_string;
 
 int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier)
 {
@@ -23,7 +28,7 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 		int bk_size = _proc_num / _thread_num;
 		for (int p=0; p<bk_size; p++) {
 			int pid = bk_size * thread_id + p;
-			for (int d_t=0; d_t<_thread_num-1; d_t++) {
+			for (int d_t=0; d_t<_thread_num; d_t++) {
 				int d_idx = pid * _thread_num + d_t;
 				for (int s_t=0; s_t<_thread_num; s_t++) {
 					int idx = d_idx * _thread_num + s_t;
@@ -49,7 +54,7 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 			for (int d_t=0; d_t<_thread_num; d_t++) {
 				int d_idx = p * _thread_num + d_t;
 				int idx = d_idx * _thread_num + thread_id;
-				COPYFROMGPU(_send_data + _send_offset[p] + _data_offset[idx], cst->_gpu_array->_send_data + cst->_send_start[d_idx*(_min_delay+1)], cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx * (_min_delay+1)]);
+				COPYFROMGPU(_send_data + _send_offset[p] + _data_offset[idx], cst->_gpu_array->_send_data + cst->_send_offset[d_idx] + cst->_send_start[d_idx*(_min_delay+1)], cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx * (_min_delay+1)]);
 			}
 		}
 		pthread_barrier_wait(barrier);
@@ -69,6 +74,24 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t
 		// msg data
 		pthread_barrier_wait(barrier);
 		if (thread_id == 0) {
+#if 1
+			for (int i=0; i<_thread_num; i++) {
+				mpi_print_gpu_array(_cs[i]->_gpu_array->_send_start, _proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_start:").c_str());
+			}
+			for (int i=0; i<_thread_num; i++) {
+				mpi_print_gpu_array(_cs[i]->_gpu_array->_send_offset, _proc_num*_thread_num+1, _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_offset:").c_str());
+			}
+			for (int i=0; i<_thread_num; i++) {
+				mpi_print_gpu_array(_cs[i]->_gpu_array->_send_data, _cs[i]->_send_offset[_proc_num*_thread_num], _proc_rank, _proc_num, (string("cs ")+to_string(_proc_rank)+"_"+to_string(i)+" send_data").c_str());
+			}
+			mpi_print_array(_recv_start, _thread_num*_proc_num*_thread_num*(_min_delay+1), _proc_rank, _proc_num, (string("recv_start ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_data_offset, _thread_num*_thread_num*_proc_num, _proc_rank, _proc_num, (string("data_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_sdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("sdata_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_rdata_offset, _thread_num*_proc_num, _proc_rank, _proc_num, (string("rdata_offset ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_send_num, _proc_num, _proc_rank, _proc_num, (string("Proc send num ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_recv_num, _proc_num, _proc_rank, _proc_num, (string("Proc recv num ")+to_string(_proc_rank)+":").c_str());
+			mpi_print_array(_send_data, _send_offset[_proc_num-1]+_send_num[_proc_num-1], _proc_rank, _proc_num, (string("Send ")+to_string(_proc_rank)+":").c_str());
+#endif
 			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_NID_T, MPI_COMM_WORLD);
 			assert(ret == MPI_SUCCESS);
 		}

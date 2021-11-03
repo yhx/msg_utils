@@ -8,7 +8,6 @@
 
 #include "catch.hpp"
 
-#include "../helper/helper_gpu.h"
 #include "../msg_utils/msg_utils.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
@@ -51,7 +50,7 @@ struct ThreadPara {
 	int tid;
 };
 
-inline int get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
+inline nid_t get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
 	return 100000* d + 10000 * s_p + 1000 * s_t + 100 * d_p + 10 * d_t + d_n;
 }
 
@@ -144,6 +143,7 @@ TEST_CASE("CHECK update 1", "") {
 	// CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
 }
 
+
 void * check_update_2(void *para) {
 	ThreadPara *tmp = static_cast<ThreadPara*>(para);
 	int tid = tmp->tid;
@@ -230,6 +230,7 @@ TEST_CASE("CHECK update 2", "") {
 	}
 }
 
+#if 0
 void * check_upload1(void *para) {
 	ThreadPara *tmp = static_cast<ThreadPara*>(para);
 	int tid = tmp->tid;
@@ -404,6 +405,7 @@ TEST_CASE("CHECK upload", "") {
 		}
 	}
 }
+#endif
 
 int main(int argc, char **argv)
 {
