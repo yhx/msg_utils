@@ -10,13 +10,13 @@ public:
 
 	int update_cpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
-	int upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
+	int upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time);
 
 	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
 	int upload_gpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, nsize_t *c_table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block);
 
-	// Cap _proc_num * _thread_num * (_min_delay + 1)
+	// Cap _thread_num * _proc_num * _thread_num * (_min_delay + 1)
 	integer_t *_recv_start;
 	integer_t *_send_start;
 

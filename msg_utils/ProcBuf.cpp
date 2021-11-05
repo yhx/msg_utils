@@ -183,7 +183,7 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 	return 0;
 }
 
-int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block)
+int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time)
 {
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay -1) {
