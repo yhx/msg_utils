@@ -11,28 +11,13 @@
 #include "../msg_utils/msg_utils.h"
 #include "../msg_utils/CrossMap.h"
 #include "../msg_utils/CrossSpike.h"
-#include "../msg_utils/CrossSpike.h"
 #include "../msg_utils/ProcBuf.h"
+#include "test.h"
 
 using std::vector;
 
-#define MPICHECK(cmd) do {                          \
-  int e = cmd;                                      \
-  if( e != MPI_SUCCESS ) {                          \
-    printf("Failed: MPI error %s:%d '%d'\n",        \
-        __FILE__,__LINE__, e);                      \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
-
-#define NCCLCHECK(cmd) do {                         \
-  ncclResult_t r = cmd;                             \
-  if (r!= ncclSuccess) {                            \
-    printf("Failed, NCCL error %s:%d '%s'\n",       \
-        __FILE__,__LINE__,ncclGetErrorString(r));   \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
+#define CHECK_UPDATE
+#define CHECK_UPLOAD
 
 // const int GPU_SIZE = 2;
 const int UPDATE_DELAY = 1;
@@ -49,11 +34,8 @@ struct ThreadPara {
 	int tid;
 };
 
-inline nid_t get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
-	return 100000* d + 10000 * s_p + 1000 * s_t + 100 * d_p + 10 * d_t + d_n;
-}
 
-#if 0
+#ifdef CHECK_UPDATE
 void * check_update_1(void *para) {
 	ThreadPara *tmp = static_cast<ThreadPara*>(para);
 	int tid = tmp->tid;
@@ -124,23 +106,22 @@ TEST_CASE("CHECK update 1", "") {
 	for (int p=0; p<proc_num; p++) {
 		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
 			int count = 0;
+			int idx = p * THREAD_NUM + d_t;
 			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				int idx_t = idx * THREAD_NUM + s_t;
 				for (int d=0; d<UPDATE_DELAY; d++) {
-					int idx = p * THREAD_NUM + d_t;
 					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d];
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d+1];
 					REQUIRE(end-start == proc_rank * THREAD_NUM + d_t);
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						// REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._data_r_offset[idx_t]+i] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
 			}
 		}
 	}
-
-
-	// CHECK_THAT(vector<nid_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), Catch::UnorderedEquals(vector<nid_t>{0, 4, 5, 6}));
 }
 
 
@@ -214,14 +195,16 @@ TEST_CASE("CHECK update 2", "") {
 	for (int p=0; p<proc_num; p++) {
 		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
 			int count = 0;
+			int idx = p * THREAD_NUM + d_t;
 			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				int idx_t = idx * THREAD_NUM + s_t;
 				for (int d=0; d<UPDATE_DELAY; d++) {
-					int idx = p * THREAD_NUM + d_t;
 					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d];
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d+1];
 					REQUIRE(end-start == THREAD_NUM*proc_num+1-(p * THREAD_NUM + s_t));
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						// REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._data_r_offset[idx_t]+i] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
@@ -231,7 +214,7 @@ TEST_CASE("CHECK update 2", "") {
 }
 #endif
 
-#if 1
+#ifdef CHECK_UPLOAD
 void * check_upload1(void *para) {
 	const int LOCAL = 4;
 
@@ -240,25 +223,21 @@ void * check_upload1(void *para) {
 	int own_id = proc_rank * THREAD_NUM + tid;
 
 	int num = proc_num * THREAD_NUM;
-	int n_num = LOCAL + num;
-	int cross_num = num - 1;
-	int n_cap = n_num + cross_num;
+	int c_num = num;
+	int n_num = LOCAL + c_num;
+	int n_cap = n_num + c_num * (num-1);
 
-	CrossMap cm(n_num, cross_num, proc_num*THREAD_NUM);
+	CrossMap cm(n_num, c_num, proc_num*THREAD_NUM);
 
 	for (int n=0; n<n_num; n++) {
 		if (n < LOCAL) {
 			cm._idx2index[n] = -1;
-		} else if (n < LOCAL+own_id) {
-			cm._idx2index[n] = n-LOCAL;
-		} else if (n == LOCAL+own_id) {
-			cm._idx2index[n] = -1;
 		} else {
-			cm._idx2index[n] = n - LOCAL - 1;
+			cm._idx2index[n] = n - LOCAL;
 		}
 	}
 
-	for (int s=0; s<num-1; s++) {
+	for (int s=0; s<c_num; s++) {
 		for (int d=0; d<num; d++) {
 			if (d == own_id) {
 				cm._index2ridx[s*num+d] = -1;
@@ -304,30 +283,40 @@ void * check_upload1(void *para) {
 
 
 	for (int t=0; t<UPLOAD_DELAY; t++) {
-		cs.fetch_cpu(&cm, (nid_t *)table, (nsize_t *)table_sizes, n_cap, proc_num, UPLOAD_DELAY, t);
+		cs.fetch_cpu(&cm, (nid_t *)table, (nsize_t *)table_sizes, n_cap, num, UPLOAD_DELAY, t);
 		pthread_barrier_wait(tmp->barrier);
 		tmp->pbuf->update_cpu(tid, t, tmp->barrier);
 		cs.log_cpu(t, name_t); 
 		tmp->pbuf->upload_cpu(tid, (nid_t *)table, (nsize_t *)table_sizes, n_cap, UPLOAD_DELAY, t);
 	}
 
+
+	CHECK(table_sizes[0] == 4);
 	CHECK_THAT(vector<nid_t>(table + 0*n_cap, table + 0*n_cap + table_sizes[0]), 
 			Catch::UnorderedEquals(vector<nid_t>{0, 1, 2, 3}));
 
 	vector<nid_t> res1 = {0, 1, 2, 3, 4, 5};
 	for (int s=0; s<num; s++) {
-		if (own_id == 0 && s != own_id) {
-			res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, 0));
-		} else if (own_id == 1 && s != own_id) {
-			if (s < own_id) {
-				res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
-			} else {
-				res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+		if (s != own_id) {
+			for (int i=0; i<2; i++) {
+				res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, i));
 			}
-		} else {
-			continue;
+
+			// if (own_id == 0 && s != own_id) {
+			// 	res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, 0));
+			// } else if (own_id == 1 && s != own_id) {
+			// 	if (s < own_id) {
+			// 		res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
+			// 	} else {
+			// 		res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+			// 	}
+			// } else {
+			// 	continue;
+			// }
 		}
 	}
+
+	CHECK(table_sizes[1] == res1.size());
 	CHECK_THAT(vector<nid_t>(table + 1*n_cap, table + 1*n_cap + table_sizes[1]), 
 			Catch::UnorderedEquals(res1));
 
@@ -337,14 +326,22 @@ void * check_upload1(void *para) {
 	}
 
 	for (int s=0; s<num; s++) {
-		if (s == own_id) {
-			continue;
-		} else if (s < own_id) {
-				res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
-		} else {
-				res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+		if (s != own_id) {
+			for (int i=0; i<c_num; i++) {
+				res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, i));
+			}
 		}
+
+		// if (s == own_id) {
+		// 	continue;
+		// } else if (s < own_id) {
+		// 	res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
+		// } else {
+		// 	res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+		// }
 	}
+
+	CHECK(table_sizes[2] == res2.size());
 	CHECK_THAT(vector<nid_t>(table + 2*n_cap, table + 2*n_cap + table_sizes[2]), 
 			Catch::UnorderedEquals(res2));
 
@@ -374,7 +371,7 @@ TEST_CASE("CHECK upload", "") {
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 
-	ThreadPara *para = new ThreadPara[2];;
+	ThreadPara *para = new ThreadPara[2];
 
 	for (int i=0; i<THREAD_NUM; i++) {
 		para[i].pbuf = &pbuf;
@@ -388,7 +385,6 @@ TEST_CASE("CHECK upload", "") {
 		pthread_join(thread_ids[i], NULL);
 	}
 	pthread_barrier_destroy(&g_proc_barrier);
-
 }
 #endif
 

@@ -14,31 +14,17 @@
 #include "../msg_utils/CrossSpike.h"
 #include "../msg_utils/CrossSpike.h"
 #include "../msg_utils/ProcBuf.h"
+#include "test.h"
 
 using std::vector;
 
-#define MPICHECK(cmd) do {                          \
-  int e = cmd;                                      \
-  if( e != MPI_SUCCESS ) {                          \
-    printf("Failed: MPI error %s:%d '%d'\n",        \
-        __FILE__,__LINE__, e);                      \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
 
-#define NCCLCHECK(cmd) do {                         \
-  ncclResult_t r = cmd;                             \
-  if (r!= ncclSuccess) {                            \
-    printf("Failed, NCCL error %s:%d '%s'\n",       \
-        __FILE__,__LINE__,ncclGetErrorString(r));   \
-    exit(EXIT_FAILURE);                             \
-  }                                                 \
-} while(0)
+#define CHECK_UPDATE
+#define CHECK_UPLOAD
 
 // const int GPU_SIZE = 2;
 const int UPDATE_DELAY = 1;
 const int UPLOAD_DELAY = 3;
-const uinteger_t CAP = 8;
 const int THREAD_NUM = 2;
 
 int proc_rank = -1;
@@ -51,10 +37,7 @@ struct ThreadPara {
 	int tid;
 };
 
-inline int get_value(int d, int s_p, int s_t,  int d_p, int d_t, int d_n) {
-	return 100000* d + 10000 * s_p + 1000 * s_t + 100 * d_p + 10 * d_t + d_n;
-}
-
+#ifdef CHECK_UPDATE
 void * check_update_1(void *para) {
 	ThreadPara *tmp = static_cast<ThreadPara*>(para);
 	int tid = tmp->tid;
@@ -127,14 +110,16 @@ TEST_CASE("CHECK update gpu 1", "") {
 	for (int p=0; p<proc_num; p++) {
 		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
 			int count = 0;
+			int idx = p * THREAD_NUM + d_t;
 			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				int idx_t = idx * THREAD_NUM + s_t;
 				for (int d=0; d<UPDATE_DELAY; d++) {
-					int idx = p * THREAD_NUM + d_t;
 					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d];
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d+1];
 					REQUIRE(end-start == proc_rank * THREAD_NUM + d_t);
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						// REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._data_r_offset[idx_t]+i] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
@@ -217,14 +202,16 @@ TEST_CASE("CHECK update gpu2", "") {
 	for (int p=0; p<proc_num; p++) {
 		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
 			int count = 0;
+			int idx = p * THREAD_NUM + d_t;
 			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
+				int idx_t = idx * THREAD_NUM + s_t;
 				for (int d=0; d<UPDATE_DELAY; d++) {
-					int idx = p * THREAD_NUM + d_t;
 					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d];
 					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPDATE_DELAY+1)+idx*(UPDATE_DELAY+1)+d+1];
 					REQUIRE(end-start == THREAD_NUM*proc_num+1-(p * THREAD_NUM + s_t));
 					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						// REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
+						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._data_r_offset[idx_t]+i] == get_value(d, p, s_t, proc_rank, d_t, i-start));
 					}
 					count += end - start;
 				}
@@ -232,36 +219,40 @@ TEST_CASE("CHECK update gpu2", "") {
 		}
 	}
 }
+#endif
 
+#ifdef CHECK_UPLOAD
 void * check_upload1(void *para) {
+	const int LOCAL = 4;
+
 	ThreadPara *tmp = static_cast<ThreadPara*>(para);
 	int tid = tmp->tid;
-
-	int num = proc_num * THREAD_NUM;
 	int own_id = proc_rank * THREAD_NUM + tid;
 
-	CrossMap cm(num, num-1, proc_num*THREAD_NUM);
+	int num = proc_num * THREAD_NUM;
+	int c_num = num;
+	int n_num = LOCAL + c_num;
+	int n_cap = n_num + c_num * (num-1);
 
-	for (int p=0; p<proc_num; p++) {
-		for (int t=0; t<THREAD_NUM; t++) {
-			int i = p * THREAD_NUM + t;
-			if (i < own_id) {
-				cm._idx2index[i] = i;
-			} else if (i == own_id){
-				cm._idx2index[i] = -1;
-			} else {
-				cm._idx2index[i] = i - 1;
-			}
+	CrossMap cm(n_num, c_num, proc_num*THREAD_NUM);
+
+	for (int n=0; n<n_num; n++) {
+		if (n < LOCAL) {
+			cm._idx2index[n] = -1;
+		} else {
+			cm._idx2index[n] = n - LOCAL;
 		}
 	}
 
-	for (int s=0; s<num; s++) {
-		if (s == own_id) {
-			continue;
-		} else if (s < own_id) {
-			cm._index2ridx[s*num+s] = num + own_id - 1;
-		} else {
-			cm._index2ridx[(s-1)*num+s] = num + own_id;
+	for (int s=0; s<c_num; s++) {
+		for (int d=0; d<num; d++) {
+			if (d == own_id) {
+				cm._index2ridx[s*num+d] = -1;
+			} else if (d < own_id) {
+				cm._index2ridx[s*num+d] = get_value(0, proc_rank, tid, d/THREAD_NUM, d%THREAD_NUM, s);
+			} else {
+				cm._index2ridx[s*num+d] = get_value(0, proc_rank, tid, d/THREAD_NUM, d%THREAD_NUM, s);
+			}
 		}
 	}
 
@@ -273,80 +264,99 @@ void * check_upload1(void *para) {
 	sprintf(name_t, "%s_%d", "upload_gpu_test", own_id);
 
 	cm.log(name);
+
+	nid_t *table = malloc_c<nid_t>((UPLOAD_DELAY+1) * n_cap); 
+
+	for (int i=0; i<LOCAL; i++) {
+		table[i] = i;
+		table[n_cap+i] = i;
+		table[3*n_cap+i] = i;
+	}
+
+	for (int i=0; i<2; i++) {
+		table[n_cap+LOCAL+i] = LOCAL+i;
+		table[3*n_cap+LOCAL+i] = LOCAL+i;
+	}
+
+	for (int i=0; i<2; i++) {
+		table[3*n_cap+LOCAL+2+i] = LOCAL + num-1-i;
+	}
+
+	for (int i=0; i<n_num; i++) {
+		table[2*n_cap + i] = i;
+	}
+
+	nsize_t table_sizes[UPLOAD_DELAY+1] = {LOCAL, LOCAL+2, n_num, LOCAL+4};
+
 	cm.to_gpu();
-
 	cs.to_gpu();
-
-	nid_t table[(UPLOAD_DELAY+1) * CAP] = {
-		0, 0, 0, 0, 0, 0, 0, 0,
-		1, 2, 0, 0, 0, 0, 0, 0,
-		2, 3, 0, 0, 0, 0, 0, 0,
-		1, 2, 3, 4, 0, 0, 0, 0
-	};
-
-	nsize_t table_sizes[UPLOAD_DELAY+1] = {1, 2, 3, 4};
-
-	nid_t *table_gpu = TOGPU(table,  (UPLOAD_DELAY+1) * CAP);
+	nid_t *table_gpu = TOGPU(table,  (UPLOAD_DELAY+1) * n_cap);
 	nid_t *table_sizes_gpu = TOGPU(table_sizes, UPLOAD_DELAY+1);
 
-
 	for (int t=0; t<UPLOAD_DELAY; t++) {
-		cs.fetch_gpu(&cm, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, CAP, proc_num, UPLOAD_DELAY, t, 2, 32);
+		cs.fetch_gpu(&cm, table_gpu, table_sizes_gpu, n_cap, num, UPLOAD_DELAY, t, 1, 32);
 		pthread_barrier_wait(tmp->barrier);
 		tmp->pbuf->update_gpu(tid, t, tmp->barrier);
 		cs.log_gpu(t, name_t); 
-		tmp->pbuf->upload_gpu(tid, (nid_t *)table_gpu, (nsize_t *)table_sizes_gpu, (nsize_t *)table_sizes, CAP, UPLOAD_DELAY, t, 2, 32);
+		tmp->pbuf->upload_gpu(tid, table_gpu, table_sizes_gpu, table_sizes, n_cap, UPLOAD_DELAY, t, 1, 32);
 	}
 
-	COPYFROMGPU(table, table_gpu, (UPLOAD_DELAY+1) * CAP);
+	COPYFROMGPU(table, table_gpu, (UPLOAD_DELAY+1) * n_cap);
 	COPYFROMGPU(table_sizes, table_sizes_gpu, UPLOAD_DELAY+1);
 
-	switch (own_id) {
-		case 0:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 1:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 2:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2, 4, 5, 6}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		case 3:
-			CHECK_THAT(vector<integer_t>(table + 0*CAP, table + 0*CAP + table_sizes[0]), 
-					Catch::UnorderedEquals(vector<integer_t>{0}));
-			CHECK_THAT(vector<integer_t>(table + 1*CAP, table + 1*CAP + table_sizes[1]), 
-					Catch::UnorderedEquals(vector<integer_t>{1, 2}));
-			CHECK_THAT(vector<integer_t>(table + 2*CAP, table + 2*CAP + table_sizes[2]), 
-					Catch::UnorderedEquals(vector<integer_t>{0, 2, 3, 4, 5, 6}));
-			// CHECK_THAT(vector<integer_t>(table + 3*CAP, table + 3*CAP + table_sizes[3]), 
-			// 		Catch::UnorderedEquals(vector<integer_t>{0, 1, 2, 3, 4, 5, 6}));
-			break;
-		default:
-			printf("Test case should carry out on four processes\n");
-			exit(-1);
-			break;
+	CHECK(table_sizes[0] == 4);
+	CHECK_THAT(vector<nid_t>(table + 0*n_cap, table + 0*n_cap + table_sizes[0]), 
+			Catch::UnorderedEquals(vector<nid_t>{0, 1, 2, 3}));
+
+	vector<nid_t> res1 = {0, 1, 2, 3, 4, 5};
+	for (int s=0; s<num; s++) {
+		if (s != own_id) {
+			for (int i=0; i<2; i++) {
+				res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, i));
+			}
+
+			// if (own_id == 0 && s != own_id) {
+			// 	res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, 0));
+			// } else if (own_id == 1 && s != own_id) {
+			// 	if (s < own_id) {
+			// 		res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
+			// 	} else {
+			// 		res1.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+			// 	}
+			// } else {
+			// 	continue;
+			// }
+		}
 	}
+
+	CHECK(table_sizes[1] == res1.size());
+	CHECK_THAT(vector<nid_t>(table + 1*n_cap, table + 1*n_cap + table_sizes[1]), 
+			Catch::UnorderedEquals(res1));
+
+	vector<nid_t> res2;
+	for (int i=0; i<n_num; i++) {
+		res2.push_back(i);
+	}
+
+	for (int s=0; s<num; s++) {
+		if (s != own_id) {
+			for (int i=0; i<c_num; i++) {
+				res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, i));
+			}
+		}
+
+		// if (s == own_id) {
+		// 	continue;
+		// } else if (s < own_id) {
+		// 	res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id-1));
+		// } else {
+		// 	res2.push_back(get_value(0, s/THREAD_NUM, s%THREAD_NUM, proc_rank, tid, own_id));
+		// }
+	}
+
+	CHECK(table_sizes[2] == res2.size());
+	CHECK_THAT(vector<nid_t>(table + 2*n_cap, table + 2*n_cap + table_sizes[2]), 
+			Catch::UnorderedEquals(res2));
 
 	return 0;
 }
@@ -359,8 +369,8 @@ TEST_CASE("CHECK upload", "") {
 		css[tid]->_send_offset[0] = 0;
 
 		for (int i=0; i<proc_num*THREAD_NUM; i++) {
-			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + proc_num*THREAD_NUM+1;
-			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + proc_num*THREAD_NUM+1;
+			css[tid]->_recv_offset[i+1] = css[tid]->_recv_offset[i] + proc_num*THREAD_NUM * UPLOAD_DELAY;
+			css[tid]->_send_offset[i+1] = css[tid]->_send_offset[i] + proc_num*THREAD_NUM * UPLOAD_DELAY;
 		}
 
 		css[tid]->alloc();
@@ -374,7 +384,7 @@ TEST_CASE("CHECK upload", "") {
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 
-	ThreadPara *para = new ThreadPara[2];;
+	ThreadPara *para = new ThreadPara[2];
 
 	for (int i=0; i<THREAD_NUM; i++) {
 		para[i].pbuf = &pbuf;
@@ -388,25 +398,8 @@ TEST_CASE("CHECK upload", "") {
 		pthread_join(thread_ids[i], NULL);
 	}
 	pthread_barrier_destroy(&g_proc_barrier);
-
-	for (int p=0; p<proc_num; p++) {
-		for (int d_t=0; d_t<THREAD_NUM; d_t++) {
-			int count = 0;
-			for (int s_t=0; s_t<THREAD_NUM; s_t++) {
-				for (int d=0; d<UPLOAD_DELAY; d++) {
-					int idx = p * THREAD_NUM + d_t;
-					int start = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPLOAD_DELAY+1)+idx*(UPLOAD_DELAY+1)+d];
-					int end = pbuf._recv_start[s_t*THREAD_NUM*proc_num*(UPLOAD_DELAY+1)+idx*(UPLOAD_DELAY+1)+d+1];
-					REQUIRE(end-start == THREAD_NUM*proc_num+1-(p * THREAD_NUM + s_t));
-					for (int i=start; i<end; i++) {
-						REQUIRE(pbuf._recv_data[pbuf._recv_offset[p]+pbuf._rdata_offset[idx]+i+count] == get_value(d, p, s_t, proc_rank, d_t, i-start));
-					}
-					count += end - start;
-				}
-			}
-		}
-	}
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -416,14 +409,6 @@ int main(int argc, char **argv)
 	MPI_Comm_size(MPI_COMM_WORLD, &proc_num);
 
 	to_attach();
-
-	// for (int i=0; i<UPLOAD_DELAY+1; i++) {
-	// 	printf("Rank %d:%d :", proc_rank, table_sizes[i]);
-	// 	for (int j=0; j<table_sizes[i]; j++) {
-	// 		printf("%d ", table[j + i * CAP]);
-	// 	}
-	// 	printf("\n");
-	// }
 
 	int result = Catch::Session().run(argc, argv);
 	MPI_Barrier(MPI_COMM_WORLD);
