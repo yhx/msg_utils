@@ -9,6 +9,13 @@
 using std::string;
 using std::to_string;
 
+void ProcBuf::to_gpu()
+{
+	for (int i=0; i<_thread_num; i++) {
+		_cs[i]->to_gpu();
+	}
+}
+
 int ProcBuf::update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier)
 {
 	int curr_delay = time % _min_delay;

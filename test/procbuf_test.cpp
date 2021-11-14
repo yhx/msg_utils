@@ -279,7 +279,7 @@ void * check_upload1(void *para) {
 		table[2*n_cap + i] = i;
 	}
 
-	nsize_t table_sizes[UPLOAD_DELAY+1] = {LOCAL, LOCAL+2, n_num, LOCAL+4};
+	nsize_t table_sizes[UPLOAD_DELAY+1] = {LOCAL, LOCAL+2, (nsize_t)n_num, LOCAL+4};
 
 
 	for (int t=0; t<UPLOAD_DELAY; t++) {
