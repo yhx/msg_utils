@@ -8,9 +8,17 @@ public:
 	ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
 	~ProcBuf();
 
+	inline int fetch_cpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time) {
+		_cs[thread_id]->fetch_cpu(cm, tables, table_sizes, table_cap, proc_num, max_delay, time);
+	}
+
 	int update_cpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
 	int upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time);
+
+	inline int fetch_gpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block) {
+		_cs[thread_id]->fetch_gpu(cm, tables, table_sizes, table_cap, proc_num, max_delay, time, grid, block);
+	}
 
 	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
 
