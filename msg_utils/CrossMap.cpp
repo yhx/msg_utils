@@ -116,14 +116,31 @@ int CrossMap::log(const char *name)
 	FILE *f = fopen_c((s+".cm").c_str(), "w+");
 	fprintf(f, "%ld\n", _num);
 	fprintf(f, "%ld\n", _cross_size);
+	size_t cross_num = 0;
 	for (size_t i=0; i<_num; i++) {
 		fprintf(f, PT_INTEGER_T("", " "), _idx2index[i]);
+		if (_idx2index[i]>=0) {
+			cross_num++;
+		}
 	}
 	fprintf(f, "\n");
-	for (size_t i=0; i<_cross_size; i++) {
-		fprintf(f, PT_INTEGER_T("", " "), _index2ridx[i]);
-	}
 	fprintf(f, "\n");
+
+	fprintf(f, "%ld\n", cross_num);
+
+	if (cross_num <= 0) {
+		assert(_cross_size <= 0);
+	} else {
+		assert(_cross_size % cross_num == 0);
+		size_t node_num = _cross_size / cross_num;
+		for (size_t i=0; i<cross_num; i++) {
+			for (size_t j=0; j<node_num; j++) {
+				fprintf(f, PT_INTEGER_T("", " "), _index2ridx[i*node_num+j]);
+			}
+			fprintf(f, "\n");
+		}
+		fprintf(f, "\n");
+	}
 	fclose_c(f);
 
 	return 0;

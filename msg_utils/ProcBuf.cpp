@@ -64,8 +64,17 @@ ProcBuf::ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, i
 	_recv_num = malloc_c<integer_t>(_proc_num);
 	_send_num = malloc_c<integer_t>(_proc_num);
 
-	_recv_data = malloc_c<nid_t>(_rdata_size[thread_num]);
-	_send_data = malloc_c<nid_t>(_sdata_size[thread_num]);
+	if (_rdata_size[thread_num] != 0) {
+		_recv_data = malloc_c<nid_t>(_rdata_size[thread_num]);
+	} else {
+		_recv_data = malloc_c<nid_t>(1);
+	}
+
+	if (_sdata_size[thread_num] != 0) {
+		_send_data = malloc_c<nid_t>(_sdata_size[thread_num]);
+	} else {
+		_send_data = malloc_c<nid_t>(1);
+	}
 }
 
 ProcBuf::~ProcBuf()
@@ -113,20 +122,21 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		// _data_offset [d_p, d_t, s_t]
 		int bk_size = _proc_num / _thread_num;
 		for (int p=0; p<bk_size; p++) {
-			int pid = bk_size * thread_id + p;
+			int d_p = bk_size * thread_id + p;
 			for (int d_t=0; d_t<_thread_num; d_t++) {
-				int d_idx = pid * _thread_num + d_t;
+				int d_idx = d_p * _thread_num + d_t;
 				for (int s_t=0; s_t<_thread_num; s_t++) {
 					// int s_idx = _proc_rank * _thread_num + s_t;
 					int idx = d_idx * _thread_num + s_t;
 					if (d_t != _thread_num - 1 || s_t != _thread_num -1) { 
 						_data_offset[idx+1] = _data_offset[idx] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
 					} else {
-						_send_num[pid] = _data_offset[idx] - _data_offset[pid*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
+						_send_num[d_p] = _data_offset[idx] - _data_offset[d_p*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
 					}	
 				}
 				// _sdata_offset[d_idx] = _data_offset[d_idx * _thread_num];
 			}
+			assert(_data_offset[d_p * _thread_num * _thread_num] == 0);
 		}
 
 		pthread_barrier_wait(barrier);
@@ -168,6 +178,8 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		// msg data
 		pthread_barrier_wait(barrier);
 		if (thread_id == 0) {
+			assert(_send_offset[_proc_num-1] + _send_num[_proc_num-1] <= _sdata_size[_thread_num]);
+			assert(_recv_offset[_proc_num-1] + _recv_num[_proc_num-1] <= _rdata_size[_thread_num]);
 			int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_NID_T, MPI_COMM_WORLD);
 			assert(ret == MPI_SUCCESS);
 		}
@@ -177,6 +189,152 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 	pthread_barrier_wait(barrier);
 
 	return 0;
+}
+
+void ProcBuf::log_cpu(const int &thread_id, const int &time, const char *name)
+{
+	string s(name);
+	s += "_" + to_string(_proc_rank) + "_" + to_string(thread_id);
+
+	if (time == 0) {
+		FILE *f = fopen_c((s+".cs").c_str(), "w+");
+		fprintf(f, "Proc rank:  %d\n", _proc_rank);
+		fprintf(f, "Proc num:   %d\n", _proc_num);
+		fprintf(f, "Thread id:  %d\n", thread_id);
+		fprintf(f, "Thread num: %d\n", _thread_num);
+		fprintf(f, "Min delay:  " FT_INTEGER_T "\n", _min_delay);
+
+		fprintf(f, "Recv offset: ");
+		for (int i=0; i<_proc_num; i++) {
+			fprintf(f, FT_INTEGER_T " ", _recv_offset[i]);
+		}
+		fprintf(f, "\n");
+
+		fprintf(f, "Send offset: ");
+		for (int i=0; i<_proc_num; i++) {
+			fprintf(f, FT_INTEGER_T " ", _send_offset[i]);
+		}
+		fprintf(f, "\n");
+		fclose_c(f);
+	}
+
+	{
+		FILE *sf = fopen_c((s+".send").c_str(), time == 0 ? "w+" : "a+");
+		fprintf(sf, "Time %d: \n", time);
+
+
+		fprintf(sf, "Send start: ");
+		for (int i=0; i<_proc_num * _thread_num * (_min_delay+1); i++) {
+			fprintf(sf, FT_INTEGER_T " ", _cs[thread_id]->_send_start[i]);
+		}
+		fprintf(sf, "\n");
+
+		fprintf(sf, "Data offset: ");
+		for (int i=0; i<_proc_num * _thread_num * _thread_num; i++) {
+			fprintf(sf, FT_INTEGER_T " ", _data_offset[i]);
+		}
+		fprintf(sf, "\n");
+
+		fprintf(sf, "Send num: ");
+		for (int i=0; i<_proc_num; i++) {
+			fprintf(sf, FT_INTEGER_T " ", _send_num[i]);
+		}
+		fprintf(sf, "\n");
+
+		fprintf(sf, "Send data: ");
+		for (int i=0; i<_send_offset[_proc_num-1]+_send_num[_proc_num-1]; i++) {
+			fprintf(sf, FT_NID_T " ", _send_data[i]);
+		}
+		fprintf(sf, "\n");
+
+		// for (int d=0; d<_min_delay; d++) {
+		// 	fprintf(sf, "Delay %d: \n", d);
+		// 	for (int n=0; n<_proc_num; n++) {
+		// 		fprintf(sf, "Proc %d: ", n);
+		// 		int start = _send_start[n*(_min_delay+1)+d];
+		// 		int end = _send_start[n*(_min_delay+1)+d+1];
+		// 		for (int k=start; k<end; k++) {
+		// 			fprintf(sf, FT_NID_T " ", _send_data[_send_offset[n] + k]);
+		// 		}
+		// 		fprintf(sf, "\n");
+		// 	}
+		// 	fprintf(sf, "\n");
+		// }
+		// fprintf(sf, "\n");
+		
+		fflush(sf);
+		fclose_c(sf);
+	}
+
+	{
+		FILE *rf = fopen_c((s+".recv").c_str(), time == 0 ? "w+" : "a+");
+
+		fprintf(rf, "Time %d: \n", time);
+
+		fprintf(rf, "Recv start: ");
+		for (int i=0; i<_proc_num * _thread_num * (_min_delay+1); i++) {
+			fprintf(rf, FT_INTEGER_T " ", _recv_start[thread_id * _proc_num * _thread_num * (_min_delay+1) + i]);
+		}
+		fprintf(rf, "\n");
+
+		fprintf(rf, "Data r offset: ");
+		for (int i=0; i<_proc_num * _thread_num * _thread_num; i++) {
+			fprintf(rf, FT_INTEGER_T " ", _data_r_offset[i]);
+		}
+		fprintf(rf, "\n");
+
+		fprintf(rf, "Recv num: ");
+		for (int i=0; i<_proc_num; i++) {
+			fprintf(rf, FT_INTEGER_T " ", _recv_num[i]);
+		}
+		fprintf(rf, "\n");
+
+		fprintf(rf, "Recv data: ");
+		for (int i=0; i<_recv_offset[_proc_num-1]+_recv_num[_proc_num-1]; i++) {
+			fprintf(rf, FT_NID_T " ", _recv_data[i]);
+		}
+		fprintf(rf, "\n");
+
+		for (int d=0; d < _min_delay; d++) {
+		 	fprintf(rf, "Delay %d: \n", d);
+			for (int s_p = 0; s_p<_proc_num; s_p++) {
+				int idx = s_p * _thread_num + thread_id;
+				for (int s_t = 0; s_t<_thread_num; s_t++) {
+					int idx_t = idx * _thread_num + s_t;
+					integer_t *start_t = _recv_start + s_t * _thread_num * _proc_num * (_min_delay+1);
+					int start = start_t[idx*(_min_delay+1)+d];
+					int end = start_t[idx*(_min_delay+1)+d+1];
+					int num = end - start;
+					fprintf(rf, "%d_%d: %d\n", s_p, s_t, num);
+					if (num > 0) {
+						for (int k=start; k<end; k++) {
+							fprintf(rf, FT_NID_T " ", _recv_data[_recv_offset[s_p] + _data_r_offset[idx_t] + k]);
+						}
+						fprintf(rf, "\n");
+					}
+				}
+			}
+		}
+
+		// for (int d=0; d<_min_delay; d++) {
+		// 	fprintf(rf, "Delay %d: \n", d);
+		// 	for (int n=0; n<_proc_num; n++) {
+		// 		fprintf(rf, "Proc %d: ", n);
+		// 		int start = _recv_start[n*(_min_delay+1)+d];
+		// 		int end = _recv_start[n*(_min_delay+1)+d+1];
+		// 		for (int k=start; k<end; k++) {
+		// 			fprintf(rf, FT_NID_T " ", _recv_data[_recv_offset[n] + k]);
+		// 		}
+		// 		// log_array_noendl(rf, _recv_data + _recv_offset[n]+start, end-start);
+		// 		fprintf(rf, "\n");
+		// 	}
+		// 	fprintf(rf, "\n");
+		// }
+		// fprintf(rf, "\n");
+		
+		fflush(rf);
+		fclose_c(rf);
+	}
 }
 
 void ProcBuf::print()
@@ -250,7 +408,7 @@ int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_size
 
 		{ // Reset
 			// memset(_cs[thread_id]->_recv_start, 0, _min_delay * _proc_num + _proc_num);
-			memset(_cs[thread_id]->_send_start, 0, _min_delay * _proc_num + _proc_num);
+			memset_c(_cs[thread_id]->_send_start, 0, (_min_delay+1) * _proc_num * _thread_num);
 
 			memset_c(_recv_num, 0, _proc_num);
 			memset_c(_send_num, 0, _proc_num);

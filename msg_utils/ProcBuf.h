@@ -8,8 +8,10 @@ public:
 	ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay);
 	~ProcBuf();
 
-	inline int fetch_cpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time) {
-		return _cs[thread_id]->fetch_cpu(cm, tables, table_sizes, table_cap, proc_num, max_delay, time);
+	void log_cpu(const int &thread_id, const int &time, const char *name);
+
+	inline int fetch_cpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time) {
+		return _cs[thread_id]->fetch_cpu(cm, tables, table_sizes, table_cap, _proc_num * _thread_num, max_delay, time);
 	}
 
 	int update_cpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
@@ -18,8 +20,8 @@ public:
 
 	void to_gpu();
 
-	inline int fetch_gpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &proc_num, const int &max_delay, const int &time, const int &grid, const int &block) {
-		return _cs[thread_id]->fetch_gpu(cm, tables, table_sizes, table_cap, proc_num, max_delay, time, grid, block);
+	inline int fetch_gpu(const int &thread_id, const CrossMap *cm, const nid_t *tables, const nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time, const int &grid, const int &block) {
+		return _cs[thread_id]->fetch_gpu(cm, tables, table_sizes, table_cap, _proc_num * _thread_num, max_delay, time, grid, block);
 	}
 
 	int update_gpu(const int &thread_id, const int &time, pthread_barrier_t *barrier);
