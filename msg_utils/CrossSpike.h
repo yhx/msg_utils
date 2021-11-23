@@ -90,6 +90,7 @@ public:
 	int to_gpu();
 	int from_gpu();
 	void alloc();
+	void prof();
 
 protected:
 	int msg_cpu();
@@ -151,6 +152,7 @@ public:
 	double _cpu_wait_gpu;
 	double _gpu_wait;
 	double _gpu_time;
+	double _comm_time;
 	double _cpu_time;
 #endif
 };

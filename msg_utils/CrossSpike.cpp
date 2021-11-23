@@ -39,6 +39,7 @@ CrossSpike::CrossSpike()
 	_gpu_wait = 0;
 	_gpu_time = 0;
 	_cpu_time = 0;
+	_comm_time = 0;
 #endif
 }
 
@@ -527,4 +528,9 @@ int CrossSpike::upload_cpu(nid_t *tables, nsize_t *table_sizes, const size_t &ta
 	return 0;
 }
 
-
+void CrossSpike::prof()
+{
+#ifdef PROF
+	printf("ProcBuf prof: %lf:%lf:%lf:%lf:%lf\n", _cpu_wait_gpu, _cpu_time, _comm_time, _gpu_time, _gpu_wait);
+#endif
+}

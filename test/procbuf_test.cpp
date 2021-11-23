@@ -60,7 +60,7 @@ void * check_update_1(void *para) {
 
 	pthread_barrier_wait(tmp->barrier);
 
-	tmp->pbuf->update_cpu(tid, UPDATE_DELAY-1, tmp->barrier);
+	tmp->pbuf->update_cpu(tid, UPDATE_DELAY-1);
 
 	return 0;
 }
@@ -80,11 +80,12 @@ TEST_CASE("CHECK update 1", "") {
 		css[tid]->alloc();
 	}
 
-	ProcBuf pbuf(css, proc_rank, proc_num, THREAD_NUM, UPDATE_DELAY);
-
 	pthread_barrier_t g_proc_barrier;
 
 	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
+
+	ProcBuf pbuf(css, &g_proc_barrier, proc_rank, proc_num, THREAD_NUM, UPDATE_DELAY);
+
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 
@@ -149,7 +150,7 @@ void * check_update_2(void *para) {
 
 	pthread_barrier_wait(tmp->barrier);
 
-	tmp->pbuf->update_cpu(tid, 1, tmp->barrier);
+	tmp->pbuf->update_cpu(tid, 1);
 
 	return 0;
 }
@@ -169,11 +170,12 @@ TEST_CASE("CHECK update 2", "") {
 		css[tid]->alloc();
 	}
 
-	ProcBuf pbuf(css, proc_rank, proc_num, THREAD_NUM, UPDATE_DELAY);
-
 	pthread_barrier_t g_proc_barrier;
 
 	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
+
+	ProcBuf pbuf(css, &g_proc_barrier, proc_rank, proc_num, THREAD_NUM, UPDATE_DELAY);
+
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 
@@ -285,7 +287,7 @@ void * check_upload1(void *para) {
 	for (int t=0; t<UPLOAD_DELAY; t++) {
 		cs.fetch_cpu(&cm, (nid_t *)table, (nsize_t *)table_sizes, n_cap, num, UPLOAD_DELAY, t);
 		pthread_barrier_wait(tmp->barrier);
-		tmp->pbuf->update_cpu(tid, t, tmp->barrier);
+		tmp->pbuf->update_cpu(tid, t);
 		cs.log_cpu(t, name_t); 
 		tmp->pbuf->upload_cpu(tid, (nid_t *)table, (nsize_t *)table_sizes, n_cap, UPLOAD_DELAY, t);
 	}
@@ -363,11 +365,11 @@ TEST_CASE("CHECK upload", "") {
 		css[tid]->alloc();
 	}
 
-	ProcBuf pbuf(css, proc_rank, proc_num, THREAD_NUM, UPLOAD_DELAY);
-
 	pthread_barrier_t g_proc_barrier;
-
 	pthread_barrier_init(&g_proc_barrier, NULL, THREAD_NUM);
+
+	ProcBuf pbuf(css, &g_proc_barrier, proc_rank, proc_num, THREAD_NUM, UPLOAD_DELAY);
+
 	pthread_t *thread_ids = malloc_c<pthread_t>(THREAD_NUM);
 	assert(thread_ids != NULL);
 

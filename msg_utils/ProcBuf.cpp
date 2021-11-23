@@ -9,7 +9,7 @@
 using std::string;
 using std::to_string;
 
-ProcBuf::ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, int min_delay)
+ProcBuf::ProcBuf(CrossSpike **cs, pthread_barrier_t *barrier, int proc_rank, int proc_num, int thread_num, int min_delay)
 {
 	_cs = cs;
 	_proc_rank = proc_rank;
@@ -75,6 +75,16 @@ ProcBuf::ProcBuf(CrossSpike **cs, int proc_rank, int proc_num, int thread_num, i
 	} else {
 		_send_data = malloc_c<nid_t>(1);
 	}
+
+	_barrier = barrier;
+
+#ifdef PROF
+	_cpu_wait_gpu = 0;
+	_gpu_wait = 0;
+	_comm_time = 0;
+	_cpu_time = 0;
+	_gpu_time = 0;
+#endif
 }
 
 ProcBuf::~ProcBuf()
@@ -103,14 +113,14 @@ ProcBuf::~ProcBuf()
 	_send_data = free_c(_send_data);
 }
 
-int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t *barrier)
+int ProcBuf::update_cpu(const int &thread_id, const int &time)
 {
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay - 1) {
 		// msg start info
 		CrossSpike *cst = _cs[thread_id];
 
-		pthread_barrier_wait(barrier);
+		pthread_barrier_wait(_barrier);
 		if (thread_id == 0) {
 			for (int i=0; i<_thread_num; i++) {
 				int size = _thread_num * (_min_delay+1);
@@ -139,7 +149,7 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 			assert(_data_offset[d_p * _thread_num * _thread_num] == 0);
 		}
 
-		pthread_barrier_wait(barrier);
+		pthread_barrier_wait(_barrier);
 		// msg thread offset
 		if (thread_id == 0) {
 			// MPI_Alltoall(_sdata_offset, _thread_num , MPI_INTEGER_T, _rdata_offset, _thread_num, MPI_INTEGER_T, MPI_COMM_WORLD);
@@ -155,7 +165,7 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 				memcpy_c(_send_data + _send_offset[p] + _data_offset[idx], cst->_send_data + cst->_send_offset[d_idx] + cst->_send_start[d_idx*(_min_delay+1)], cst->_send_start[d_idx*(_min_delay+1) + _min_delay] - cst->_send_start[d_idx*(_min_delay+1)]);
 			}
 		}
-		pthread_barrier_wait(barrier);
+		pthread_barrier_wait(_barrier);
 		// calc recv_num
 		for (int p=0; p<bk_size; p++) {
 			int s_p = bk_size * thread_id + p;
@@ -176,7 +186,7 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 		// 	}
 		// }
 		// msg data
-		pthread_barrier_wait(barrier);
+		pthread_barrier_wait(_barrier);
 		if (thread_id == 0) {
 			assert(_send_offset[_proc_num-1] + _send_num[_proc_num-1] <= _sdata_size[_thread_num]);
 			assert(_recv_offset[_proc_num-1] + _recv_num[_proc_num-1] <= _rdata_size[_thread_num]);
@@ -186,7 +196,66 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time, pthread_barrier_t
 	} else {
 		_cs[thread_id]->update_cpu(time);
 	}
-	pthread_barrier_wait(barrier);
+	pthread_barrier_wait(_barrier);
+
+	return 0;
+}
+
+int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time)
+{
+	int curr_delay = time % _min_delay;
+	if (curr_delay >= _min_delay -1) {
+// #ifdef PROF
+// 		double ts = 0, te = 0;
+// 		
+// 		ts = MPI_Wtime();
+// #endif
+// #ifdef PROF
+// 		te = MPI_Wtime();
+// 		_gpu_wait += te - ts;
+// #endif
+
+#if 0
+// #ifdef ASYNC
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif 
+		MPI_Status status_t;
+		int ret = MPI_Wait(&_request, &status_t);
+		assert(ret == MPI_SUCCESS);
+#ifdef PROF
+		te = MPI_Wtime();
+		_cpu_wait_gpu += te - ts;
+#endif
+#endif
+
+		for (int d=0; d < _min_delay; d++) {
+			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
+			for (int s_p = 0; s_p<_proc_num; s_p++) {
+				int idx = s_p * _thread_num + thread_id;
+				for (int s_t = 0; s_t<_thread_num; s_t++) {
+					int idx_t = idx * _thread_num + s_t;
+					integer_t *start_t = _recv_start + s_t * _thread_num * _proc_num * (_min_delay+1);
+					int start = start_t[idx*(_min_delay+1)+d];
+					int end = start_t[idx*(_min_delay+1)+d+1];
+					int num = end - start;
+					if (num > 0) {
+						assert(table_sizes[delay_idx] + num <= table_cap);
+						memcpy_c(tables + table_cap*delay_idx + table_sizes[delay_idx], _recv_data + _recv_offset[s_p] + _data_r_offset[idx_t] + start, num);
+						table_sizes[delay_idx] += num;
+					}
+				}
+			}
+		}
+
+		{ // Reset
+			// memset(_cs[thread_id]->_recv_start, 0, _min_delay * _proc_num + _proc_num);
+			memset_c(_cs[thread_id]->_send_start, 0, (_min_delay+1) * _proc_num * _thread_num);
+
+			memset_c(_recv_num, 0, _proc_num);
+			memset_c(_send_num, 0, _proc_num);
+		}
+	}
 
 	return 0;
 }
@@ -359,61 +428,9 @@ void ProcBuf::print()
 	mpi_print_array(_recv_data, _recv_offset[_proc_num-1]+_recv_num[_proc_num-1], _proc_rank, _proc_num, (string("Proc recv ")+to_string(_proc_rank)+":").c_str());
 }
 
-int ProcBuf::upload_cpu(const int &thread_id, nid_t *tables, nsize_t *table_sizes, const size_t &table_cap, const int &max_delay, const int &time)
+void ProcBuf::prof()
 {
-	int curr_delay = time % _min_delay;
-	if (curr_delay >= _min_delay -1) {
-// #ifdef PROF
-// 		double ts = 0, te = 0;
-// 		
-// 		ts = MPI_Wtime();
-// #endif
-// #ifdef PROF
-// 		te = MPI_Wtime();
-// 		_gpu_wait += te - ts;
-// #endif
-
-#if 0
-// #ifdef ASYNC
 #ifdef PROF
-		ts = MPI_Wtime();
-#endif 
-		MPI_Status status_t;
-		int ret = MPI_Wait(&_request, &status_t);
-		assert(ret == MPI_SUCCESS);
-#ifdef PROF
-		te = MPI_Wtime();
-		_cpu_wait_gpu += te - ts;
+	printf("ProcBuf prof: %lf:%lf:%lf:%lf:%lf\n", _cpu_wait_gpu, _cpu_time, _comm_time, _gpu_time, _gpu_wait);
 #endif
-#endif
-
-		for (int d=0; d < _min_delay; d++) {
-			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
-			for (int s_p = 0; s_p<_proc_num; s_p++) {
-				int idx = s_p * _thread_num + thread_id;
-				for (int s_t = 0; s_t<_thread_num; s_t++) {
-					int idx_t = idx * _thread_num + s_t;
-					integer_t *start_t = _recv_start + s_t * _thread_num * _proc_num * (_min_delay+1);
-					int start = start_t[idx*(_min_delay+1)+d];
-					int end = start_t[idx*(_min_delay+1)+d+1];
-					int num = end - start;
-					if (num > 0) {
-						assert(table_sizes[delay_idx] + num <= table_cap);
-						memcpy_c(tables + table_cap*delay_idx + table_sizes[delay_idx], _recv_data + _recv_offset[s_p] + _data_r_offset[idx_t] + start, num);
-						table_sizes[delay_idx] += num;
-					}
-				}
-			}
-		}
-
-		{ // Reset
-			// memset(_cs[thread_id]->_recv_start, 0, _min_delay * _proc_num + _proc_num);
-			memset_c(_cs[thread_id]->_send_start, 0, (_min_delay+1) * _proc_num * _thread_num);
-
-			memset_c(_recv_num, 0, _proc_num);
-			memset_c(_send_num, 0, _proc_num);
-		}
-	}
-
-	return 0;
 }

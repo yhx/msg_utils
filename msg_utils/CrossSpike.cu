@@ -148,10 +148,17 @@ int CrossSpike::update_gpu(const int &time)
 {
 	int curr_delay = time % _min_delay;
 	if (curr_delay >= _min_delay -1) {
+#ifdef PROF
+		double ts = MPI_Wtime();
+#endif
 		COPYFROMGPU(_send_start, _gpu_array->_send_start, _proc_num * (_min_delay + 1));
 		if (_send_offset[_proc_num] > 0) {
 			COPYFROMGPU(_send_data, _gpu_array->_send_data, _send_offset[_proc_num]);
 		}
+#ifdef PROF
+		double te = MPI_Wtime();
+		_cpu_wait_gpu += te - ts;
+#endif
 		msg_gpu();
 	} else {
 		cudaDeviceSynchronize();
@@ -164,7 +171,7 @@ int CrossSpike::update_gpu(const int &time)
 int CrossSpike::msg_gpu()
 {
 #ifdef PROF
-	double ts = 0, te = 0;
+	double ts = MPI_Wtime();
 #endif
 
 	for (int i=0; i<_proc_num; i++) {
@@ -195,9 +202,6 @@ int CrossSpike::msg_gpu()
 	}
 
 
-#ifdef PROF
-		ts = MPI_Wtime();
-#endif
 	MPI_Alltoall(_send_start, _min_delay+1, MPI_INTEGER_T, _recv_start, _min_delay+1, MPI_INTEGER_T, MPI_COMM_WORLD);
 
 	for (int i=0; i<_proc_num; i++) {
@@ -207,6 +211,10 @@ int CrossSpike::msg_gpu()
 			_recv_num[i] = _recv_start[i*(_min_delay+1)+_min_delay];
 		}
 	}
+#ifdef PROF
+		double te = MPI_Wtime();
+		_cpu_time += te - ts;
+#endif
 
 #ifdef ASYNC
 	int ret = MPI_Ialltoallv(_send_data, _send_num, _send_offset , MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD, &_request);
@@ -214,10 +222,6 @@ int CrossSpike::msg_gpu()
 #else
 	int ret = MPI_Alltoallv(_send_data, _send_num, _send_offset, MPI_NID_T, _recv_data, _recv_num, _recv_offset, MPI_INTEGER_T, MPI_COMM_WORLD);
 	assert(ret == MPI_SUCCESS);
-#endif
-#ifdef PROF
-		te = MPI_Wtime();
-		_cpu_time += te - ts;
 #endif
 
 	if (_gpu_num > 1) {
@@ -301,10 +305,13 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 		assert(ret == MPI_SUCCESS);
 #ifdef PROF
 		te = MPI_Wtime();
-		_cpu_wait_gpu += te - ts;
+		_comm_time += te - ts;
 #endif
 #endif
 
+#ifdef PROF
+		ts = MPI_Wtime();
+#endif 
 		for (int d=0; d < _min_delay; d++) {
 			int delay_idx = (time-_min_delay+2+d+max_delay)%(max_delay+1);
 			for (int p = 0; p<_proc_num; p++) {
@@ -318,6 +325,10 @@ int CrossSpike::upload_gpu(nid_t *tables, nsize_t *table_sizes, nsize_t *c_table
 			}
 		}
 		COPYTOGPU(table_sizes, c_table_sizes, max_delay+1);
+#ifdef PROF
+		te = MPI_Wtime();
+		_gpu_time += te - ts;
+#endif
 
 		{ // Reset
 			gpuMemset(_gpu_array->_recv_start, 0, _min_delay * _proc_num + _proc_num);
