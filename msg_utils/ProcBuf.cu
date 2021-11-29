@@ -33,10 +33,12 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time)
 		if (thread_id == 0) {
 			for (int i=0; i<_thread_num; i++) {
 				int size = _thread_num * (_min_delay+1);
+				// _recv_start [s_t, s_p, d_t]
 				MPI_Alltoall(_cs[i]->_send_start, size, MPI_INTEGER_T, _recv_start + i * _proc_num * size, size, MPI_INTEGER_T, MPI_COMM_WORLD);
 			}
 		}
 		// calc thread offset
+		// _data_offset [d_p, d_t, s_t]
 		int bk_size = _proc_num / _thread_num;
 		for (int p=0; p<bk_size; p++) {
 			int d_p = bk_size * thread_id + p;
@@ -50,6 +52,7 @@ int ProcBuf::update_gpu(const int &thread_id, const int &time)
 						_send_num[d_p] = _data_offset[idx] - _data_offset[d_p*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx * (_min_delay+1)]);
 					}
 				}
+				assert(_data_offset[d_p * _thread_num * _thread_num] == 0);
 				// _sdata_offset[d_idx] = _data_offset[d_idx * _thread_num];
 			}
 		}

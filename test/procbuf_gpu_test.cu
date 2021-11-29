@@ -19,7 +19,7 @@
 using std::vector;
 
 
-#define CHECK_UPDATE
+//#define CHECK_UPDATE
 #define CHECK_UPLOAD
 
 // const int GPU_SIZE = 2;
@@ -64,7 +64,8 @@ void * check_update_1(void *para) {
 
 	pthread_barrier_wait(tmp->barrier);
 
-	tmp->pbuf->update_cpu(tid, UPDATE_DELAY-1);
+	tmp->pbuf->update_gpu(tid, UPDATE_DELAY-1);
+	tmp->pbuf->print();
 
 	return 0;
 }
