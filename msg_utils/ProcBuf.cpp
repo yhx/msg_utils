@@ -130,23 +130,25 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time)
 		}
 		// calc thread offset
 		// _data_offset [d_p, d_t, s_t]
-		int bk_size = _proc_num / _thread_num;
+		int bk_size = (_proc_num + _thread_num -1)/ _thread_num;
 		for (int p=0; p<bk_size; p++) {
 			int d_p = bk_size * thread_id + p;
-			for (int d_t=0; d_t<_thread_num; d_t++) {
-				int d_idx = d_p * _thread_num + d_t;
-				for (int s_t=0; s_t<_thread_num; s_t++) {
-					// int s_idx = _proc_rank * _thread_num + s_t;
-					int idx = d_idx * _thread_num + s_t;
-					if (d_t != _thread_num - 1 || s_t != _thread_num -1) { 
-						_data_offset[idx+1] = _data_offset[idx] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
-					} else {
-						_send_num[d_p] = _data_offset[idx] - _data_offset[d_p*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
-					}	
+			if (d_p < _proc_num) {
+				for (int d_t=0; d_t<_thread_num; d_t++) {
+					int d_idx = d_p * _thread_num + d_t;
+					for (int s_t=0; s_t<_thread_num; s_t++) {
+						// int s_idx = _proc_rank * _thread_num + s_t;
+						int idx = d_idx * _thread_num + s_t;
+						if (d_t != _thread_num - 1 || s_t != _thread_num -1) { 
+							_data_offset[idx+1] = _data_offset[idx] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
+						} else {
+							_send_num[d_p] = _data_offset[idx] - _data_offset[d_p*_thread_num*_thread_num] + (_cs[s_t]->_send_start[d_idx*(_min_delay+1) + _min_delay] - _cs[s_t]->_send_start[d_idx*(_min_delay+1)]);
+						}	
+					}
+					// _sdata_offset[d_idx] = _data_offset[d_idx * _thread_num];
 				}
-				// _sdata_offset[d_idx] = _data_offset[d_idx * _thread_num];
+				assert(_data_offset[d_p * _thread_num * _thread_num] == 0);
 			}
-			assert(_data_offset[d_p * _thread_num * _thread_num] == 0);
 		}
 
 		pthread_barrier_wait(_barrier);
@@ -169,11 +171,13 @@ int ProcBuf::update_cpu(const int &thread_id, const int &time)
 		// calc recv_num
 		for (int p=0; p<bk_size; p++) {
 			int s_p = bk_size * thread_id + p;
-			int tmp = _thread_num * _proc_num;
-			int idx = (s_p+1) * _thread_num * _thread_num - 1;
-			int idx_t = (tmp + 1) * (_thread_num - 1) + s_p * _thread_num;
-			idx_t = idx_t * (_min_delay + 1);
-			_recv_num[s_p] = _data_r_offset[idx] + _recv_start[idx_t + _min_delay] - _recv_start[idx_t];
+			if (s_p < _proc_num) {
+				int tmp = _thread_num * _proc_num;
+				int idx = (s_p+1) * _thread_num * _thread_num - 1;
+				int idx_t = (tmp + 1) * (_thread_num - 1) + s_p * _thread_num;
+				idx_t = idx_t * (_min_delay + 1);
+				_recv_num[s_p] = _data_r_offset[idx] + _recv_start[idx_t + _min_delay] - _recv_start[idx_t];
+			}
 		}
 		// for (int p=0; p<bk_size; p++) {
 		// 	int s_p = bk_size * thread_id + p;
